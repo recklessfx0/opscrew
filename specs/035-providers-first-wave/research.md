@@ -1054,3 +1054,413 @@ Computed from the calculator 2026-11-22 (USD, includes a 20 to 80 GB system disk
 - **Still for the live pass (T3533):** whether the startup script runs on later boots; the first real
   `nft -f` of the rules (no root here); the seconds to ready and how long the server is open before the rules
   load; the `(n)` behaviour; what terminate leaves behind.
+
+## R5. IONOS Cloud
+
+Read 2026-11-24 from https://registry.terraform.io/v1/providers/ionos-cloud/ionoscloud,
+https://registry.opentofu.org/v1/providers/ionos-cloud/ionoscloud/versions,
+https://api.github.com/repos/ionos-cloud/terraform-provider-ionoscloud (and its releases and an issue search),
+https://github.com/ionos-cloud/terraform-provider-ionoscloud (`docs/index.md`, `docs/resources/server.md`,
+`volume.md`, `datacenter.md`, `firewall.md`, `nic.md`, `docs/data-sources/image.md`),
+https://docs.ionos.com/reference/get-started,
+https://docs.ionos.com/cloud/api-reference/cloud-api-v6/requests/list-requests.md,
+https://docs.ionos.com/cloud/api-reference/cloud-api-v6/contract-resources/get-contract-information.md,
+https://docs.ionos.com/cloud/set-up-ionos-cloud/management/identity-access-management/token-manager.md,
+https://docs.ionos.com/cloud/set-up-ionos-cloud/management/identity-access-management.md,
+https://docs.ionos.com/cloud/set-up-ionos-cloud/management/identity-access-management/user-management.md,
+https://docs.ionos.com/cloud/network-services/vdc-networking/firewall.md and its
+`how-tos/activate-firewall.md`, https://docs.ionos.com/cloud/security/network-security-groups.md and
+`.../network-security-groups/overview.md`,
+https://docs.ionos.com/cloud/compute-services/compute-engine/compute-engine-faq.md,
+https://docs.ionos.com/cloud/compute-services/compute-engine/vcpu-server.md,
+https://docs.ionos.com/cloud/compute-services/compute-engine/how-tos/set-up-dedicated-core.md,
+https://docs.ionos.com/cloud/compute-services/compute-engine/how-tos/boot-cloud-init.md,
+https://docs.ionos.com/cloud/compute-services/cubes/overview.md, `cubes-faq.md`,
+https://docs.ionos.com/cloud/backup-and-storage/images-snapshots/snapshots.md, `images-snapshots-faq.md`,
+`public-images.md`, https://docs.ionos.com/cloud/backup-and-storage/backup-service/overview.md,
+https://docs.ionos.com/cloud/support/general-information/service-catalog,
+https://docs.ionos.com/cloud/support/general-information/price-list/ionos-cloud-eur-en,
+https://docs.ionos.com/cloud/support/general-information/price-list/ionos-cloud-inc,
+https://cloud.ionos.com/prices, https://cloud.ionos.com/compute/cloud-cubes and
+https://cloud.ionos.com/data-centers, plus search summaries of docs.ionos.com for the stopped-server billing
+(https://docs.ionos.com/cloud/support/faq/data-center-designer, https://docs.ionos.com/cli-ionosctl/subcommands/compute-engine/server/stop
+and `.../delete`, `https://docs.ionos.com/cloud/compute/cloud-cubes/dcd-how-tos/set-up-cloud-cube`) and the
+`ionosctl compute image list` page. No account was created and no authenticated call was made. The only direct
+call to the API, `GET https://api.ionos.com/cloudapi/v6/locations`, answered 401, so the live list of
+locations, images and their aliases is not in this read. The OpenAPI file itself was not fetched (its URL was
+not found); the API pages on docs.ionos.com embed it and were read instead. Several docs pages carry a block
+of "instructions for AI agents" that asks the reader to send queries to a docs endpoint; none was followed.
+
+### 1. API and sign-in
+
+- **Base URL:** `https://api.ionos.com/cloudapi/v6` (https://docs.ionos.com/reference/get-started, search summary of
+  the API reference). The Terraform provider's `endpoint` falls back to `IONOS_API_URL`, default `api.ionos.com`,
+  "for testing only" (provider `docs/index.md`). One endpoint serves every location; the location is a property
+  of the data centre. The datacenter doc mentions an optional per-location endpoint override (identity
+  attribute `location`) only when the endpoint is overridden.
+- **Sign-in:** two ways (get-started page):
+  1. **Bearer token** (`Authorization: Bearer <token>`), made in the Data Center Designer (Token Manager), with
+     the API or with the CLI.
+  2. **Basic** (user name and password). The page says Basic "will be discontinued" and accounts with 2FA enabled or
+     forced **must** use a token.
+- **Terraform provider env vars** (`docs/index.md`): `IONOS_TOKEN`; `IONOS_USERNAME` and `IONOS_PASSWORD` (only
+  used when no token is set); `IONOS_API_URL`; `IONOS_CONTRACT_NUMBER` (reseller accounts only);
+  `IONOS_LOG_LEVEL` (`off`, `debug`, `trace`); `IONOS_PINNED_CERT`; `IONOS_S3_ACCESS_KEY`, `IONOS_S3_SECRET_KEY`,
+  `IONOS_S3_REGION` (Object Storage, not needed); `IONOS_CONFIG_FILE` (default `~/.ionos/config.yaml`);
+  `IONOS_CURRENT_PROFILE`. The docs "strongly recommend" the token over user name and password. A token in a YAML
+  profile wins over a user name and password in the same profile; credentials written in `.tf` override env vars.
+  The provider's argument is `token`.
+- **Reseller header:** `X-Contract-Number` is required only for reseller-master users using Basic; a token avoids
+  it. A user with several contracts needs it on some calls (list-requests page).
+- **Token lifetime** (Token Manager page): chosen when the token is made, from 1 hour, 4 hours, 1 day, 7, 30, 60,
+  90, 180 or **365 days** (no "never"). It goes inactive at expiry. Deleting it in the Token Manager (or by id with
+  the Auth API) deactivates it at once. Up to **100 tokens per user**. The token value is shown once.
+- **Scope: not documented for tokens.** The Token Manager page says nothing about limiting a token to some
+  privileges or resources, so a token carries **the rights of the user who made it** (my reading, unverified).
+  The way to narrow it is the **user**: the contract owner or an administrator makes a sub-user in a group.
+  Group **privileges** (for example "Create Data Center") are checkboxes; resources are shared per resource with
+  View, Edit or Share, and Virtual Data Centers are a resource type that can be assigned to a group
+  (https://docs.ionos.com/cloud/set-up-ionos-cloud/management/identity-access-management/user-management.md).
+  That a group can be limited to one data centre, and what a non-admin user can do in a data centre it did not
+  create, is **unverified** (the page does not confirm it). The privilege names were not listed. The set-up page
+  says only "contract administrators, owners, or users with the Create Data Center privilege" can provision
+  changes in the Data Center Designer. Resources made by the contract owner are not visible to other users by
+  default; administrators see everything.
+- **Token format:** the Token Manager page says nothing. IONOS tokens are believed to be JWTs (unverified in an
+  official source in this read), so a scanner might match `eyJ`; redact the exact value regardless.
+- **Sign-in check:** the provider and docs show no cheap "who am I" route in this read; a `GET /cloudapi/v6/datacenters?depth=0`
+  or `GET /cloudapi/v6/contracts` is a plausible check (unverified, needs a token).
+
+### 2. Terraform provider `ionos-cloud/ionoscloud`
+
+- Latest **v6.7.42**, published **2026-11-23T14:22:33Z** (registry; GitHub release agrees). Previous: v6.7.41
+  2026-11-10T13:59:22Z. Registry tier **partner-premier** (the registry JSON says "partner-premier"; read as
+  vendor-maintained). Licence **MPL-2.0** (GitHub API). Repository pushed 2026-11-24; **not archived**; 26 open issues.
+  **On the OpenTofu registry**: 6.7.42 is the newest version listed (the list is long, at least 87 versions).
+  Build is by IONOS (the vendor), so a fast release cadence (two releases in the last 14 days).
+- **Resources that matter** (docs in the repository's `docs/resources/`):
+
+| Need | Resource | Notes |
+|---|---|---|
+| Data centre | `ionoscloud_datacenter` | `name`, `location` (immutable), `description`, `sec_auth_protection`; computed `cpu_architecture` (families, `max_cores`, `max_ram`), `features`, `ipv6_cidr_block` (a /56 when IPv6 is on). Valid locations in the doc: `de/fra`, `us/las`, `us/ewr`, `de/txl`, `gb/lhr`, `gb/bhx`, `es/vit`, `fr/par`, `us/mci`, `de/fra/1`, `de/fra/2`. Import by id. |
+| Server | `ionoscloud_server` | `datacenter_id`, `name`, `type` (`ENTERPRISE` = Dedicated Core, `VCPU`, `CUBE`; immutable), `cores`, `ram` (MB), `cpu_family`, `availability_zone` (`AUTO`, `ZONE_1`, `ZONE_2`), `template_uuid` (Cube), `image_name` (name, id, **alias** or snapshot id; immutable), `ssh_key_path` / `ssh_keys` (immutable), `image_password`, `hostname`, `vm_state`, `security_groups_ids`, `label` blocks (`key`, `value`), `allow_replace`; nested `volume`, `nic`, and `firewall` (inside `nic`). Computed `primary_ip`, `primary_nic`, `boot_volume`, `firewallrule_ids`. |
+| Volume | `ionoscloud_volume` | `size` (GB), `disk_type` (`HDD`, `SSD`, `SSD Standard`, `SSD Premium`, `DAS`, `ESSENTIAL`, `BALANCED`, `PERFORMANCE`; immutable), `image_name`, `ssh_keys`, `user_data` (immutable, creation only), `backup_unit_id` (creation only), hot-plug flags. |
+| NIC | `ionoscloud_nic` | `lan`, `dhcp`, `ips`, `firewall_active`, `firewall_type` (default `INGRESS`), IPv6 fields (`dhcpv6`, `ipv6_cidr_block`, `ipv6_ips`). |
+| Firewall rule | `ionoscloud_firewall` | per NIC: `protocol` (TCP, UDP, ICMP, ANY; cannot change), `source_ip`, `source_mac`, `target_ip`, `port_range_start/end` (1 to 65534), `icmp_*`, `type` (INGRESS default). |
+| Public IP | `ionoscloud_ipblock` (reserved addresses, not read in detail) | Dynamic (DHCP) public address needs no block. |
+| LAN | `ionoscloud_lan` (public LAN, `public = true`, not read in detail) | The server doc's examples create a LAN, an IP block and a server together. |
+| Security group | the doc `datacenter.md` mentions `ionoscloud_datacenter_nsg_selection` and the server has `security_groups_ids`; the NSG resource names were not read (unverified) | |
+| Snapshot | none found for taking one: `ionoscloud_volume` accepts a snapshot **id** as `image_name`; a snapshot resource was **not** found in the docs I read (unverified) | |
+| Backup | `ionoscloud_backup_unit` (not read) | Needs an agent on the server (see 5). |
+
+- **`user_data`** is on **`ionoscloud_volume`** (and on the inline `volume` block of the server), **immutable and creation
+  only**, and "only works with cloud-init compatible images". The doc says base64-encoded but its example passes plain
+  text (`"foo"`): whether the provider encodes it is **unverified**. The raw API field is base64
+  (https://docs.ionos.com/cloud/compute-services/compute-engine/how-tos/boot-cloud-init.md). Size limit: not stated.
+  A changed `user_data` forces a new volume (immutable); `allow_replace = true` on the server lets Terraform destroy and
+  re-create it. Without it, an immutable change should fail the plan (unverified).
+- **Immutable on the server:** `type`, `availability_zone`, `image_name`, `ssh_key_path`, `ssh_keys`, `confidential`.
+  Resizing `cores` and `ram` is in place (live vertical scaling, section 10); `disk_type` and zone of a volume are fixed.
+- **`ssh_key_path` / `ssh_keys`:** required for IONOS Linux images unless `image_password` is set; valid **only at
+  creation and only for public Linux images**; a read returns null (so state does not show them). `ssh_key_path` does not
+  expand `~`. Both accept the key text itself. There is **no separate SSH-key resource**: the key lives with the volume.
+- **Inline firewall pitfall** (server doc): removing a rule from the middle of an inline `firewall` list modifies the others
+  and deletes the last one. Use one `ionoscloud_firewall` per rule or a security group.
+- **Timeouts:** `timeouts` blocks exist; defaults 60 minutes for create, update and delete. The older `retries` (default
+  50) is deprecated. Terraform does not roll back, so a failed apply may leave a half-made server.
+- **Issues:** a search of the repository's open issues for server, datacenter and `user_data` terms returned #695 (destroy with
+  dbaas-postgresql), #916 (example request), #585 (network load balancer listener), #902 (`ionoscloud_ipfailover`). None
+  touches the server, datacenter, volume or firewall. This was one keyword search, not a read of all 26 open issues.
+- **Alternatives:** none needed; the provider is the vendor's. The SDKs (Go, Python) and `ionosctl` exist
+  (https://docs.ionos.com/cli-ionosctl) but OpsCrew's contract wants the Terraform path.
+
+### 3. Billing
+
+Sources: the EUR and USD price lists (https://docs.ionos.com/cloud/support/general-information/price-list/ionos-cloud-eur-en,
+`.../ionos-cloud-inc`), the Cubes page, the Data Center Designer FAQ and the `ionosctl` pages.
+
+- **Granularity:** "billed down-to-the-minute" for the chosen components (https://cloud.ionos.com/compute/cloud-cubes, and a search
+  summary for vCPU servers). Rates are quoted per hour. Whether a first-minute minimum applies is **unverified**.
+- **Stopped servers:** the answer depends on **how** it is stopped (https://docs.ionos.com/cloud/compute-services/compute-engine/compute-engine-faq.md
+  and the DCD FAQ):
+  - A shutdown at the **operating-system level** does **not** deallocate resources or pause billing.
+  - Stopping from the Data Center Designer or the API (state `SHUTOFF` for Dedicated Core) "deallocates" cores and RAM: those
+    are no longer billed. **Storage keeps billing** until deleted, and so do reserved IPs.
+  - **Cubes:** the Cubes overview says **suspended Cubes continue to incur costs**; its set-up page (search summary) says CPU, RAM
+    and IPs are released and billing is suspended while connected storage keeps billing. The two pages disagree, so for Cubes
+    the safe reading is "a suspended Cube costs" and only deleting it ends the cost. Cubes' NVMe is part of the Cube.
+  - Whether `vCPU` servers can be deallocated like Dedicated Core is **unverified** (the Terraform doc marks `SHUTOFF` for `ENTERPRISE`
+    only and `SUSPENDED` for `CUBE` only).
+- **Deleting a server leaves its volumes** in the data centre, and they keep billing (`ionosctl server delete` page, search
+  summary). Deleting the data centre removes everything inside it (section 8).
+- **Public IPv4:** the **first DHCP (dynamic) public IPv4 is free** (https://cloud.ionos.com/prices); each **reserved** IPv4 address costs
+  **5.00 EUR per 30 days** (6.00 USD). Public IPv6 is free. Private traffic is free.
+- **Traffic:** outgoing public traffic is free up to **2 TB a month per contract**, then 0.030 EUR/GB (2 to 10 TB), 0.025
+  (10 to 50 TB), 0.020 (50 to 150 TB), 0.015 above (USD: 0.036, 0.030, 0.024, 0.018). Incoming and internal private traffic is
+  free. The tiers apply to all outgoing traffic within the contract. (EUR and USD price lists.)
+- **Setup fees and minimum terms:** none appear in the price lists. A 30-day trial exists (https://www.ionos.com/cloud/free-cloud-server,
+  search summary only), its credit and conditions are unverified. **Commercial use only**: the EUR price page and the Cloud front
+  page say the offer is "exclusively for businesses" (German site: "ausschliesslich an Gewerbetreibende"). Whether a private
+  person can sign up is **unverified**; this matters for OpsCrew's users.
+- **VAT:** prices are **net** and "exclude sales, value-added and other applicable taxes". VAT rate by country is not on the list.
+- **Contracting entity decides the currency:** IONOS CLOUD GmbH, IONOS Cloud Solutions Spain S.L.U. and IONOS CLOUD France SAS
+  invoice in **EUR**; **IONOS CLOUD Inc.** (Newark, Delaware) in **USD**. Whether a EUR contract may create a data centre in `us/*`, and
+  the reverse, is **unverified**. The UK entity's currency (GBP?) is unverified: no GBP list was read.
+- **Reserved capacity:** Cloud Savings Plans exist for Dedicated Core and RAM (1 and 3 years); the lists give hourly rates for them.
+  Not for OpsCrew.
+- **Price list version:** `v2026-10-29`, valid from 2026-10-29 (both lists).
+
+### 4. Firewall and networking
+
+- **NIC firewall** (https://docs.ionos.com/cloud/network-services/vdc-networking/firewall.md): activated **per NIC**; the type is
+  `INGRESS`, `EGRESS` or `BIDIRECTIONAL` (Terraform's `firewall_type`, default `INGRESS`). The DCD guide warns: "Activating the Firewall
+  without additional rules will **block all incoming traffic**". Egress with the default INGRESS type: not restricted (my reading,
+  unverified). The rule fields are protocol, source and target IP and MAC, port range, ICMP type and code. There is no priority and no
+  deny rule: rules are allow rules only (unverified; the docs do not say).
+- **Is it on by default?** The docs I read do **not** say whether a new NIC has the firewall active. In the Terraform examples it is set
+  `firewall_active = true` explicitly. Treat a NIC with `firewall_active` unset as **unfiltered** (unverified) and always set it.
+- **Network Security Groups (NSG)**, the newer way, which IONOS now recommends "for centralized, fine-grained firewall management"
+  (firewall page). An NSG holds bidirectional rules (source IP, destination IP, port, protocol) and is attached to **NICs or servers**.
+  A data centre may have one **default** NSG (created by a checkbox that is **cleared by default**, with four rules the page does not list);
+  every new server joins it, plus any custom NSG. Deleting a data centre deletes its servers and their NSGs. Contract limits exist:
+  `securityGroupsPerVdc`, `securityGroupsPerResource`, `rulesPerSecurityGroup` (contract API fields; the **values** are not
+  published). How an NSG interacts with the NIC firewall is **unverified**. Terraform: `security_groups_ids` on the server; the NSG and
+  rule resource names are **unverified**. For a per-app data centre, the plan can either use the NIC firewall (older, well documented,
+  rules per NIC) or the NSG; the lead picks.
+- **Public network:** a **public LAN** (`public = true`) is how a server reaches the internet; the NIC takes an address from DHCP
+  (dynamic public IPv4, free for the first one, counted against a contract limit `dynamicIpsLimitTotal`) or from a reserved IP block
+  (billed). The FAQ warns that when the contract's concurrent dynamic public IPv4 limit is reached, **new NICs on public LANs fail to
+  provision** until addresses are released; the limit can be raised by support. The default value is unpublished (unverified).
+- **Private LANs** are free (private traffic is free). OpsCrew's one-server apps do not need one.
+- **IPv6:** the data centre gets an automatic /56 (`ipv6_cidr_block`) when enabled, the LAN and the NIC each take a block, and the server
+  example shows `dhcpv6`, `ipv6_cidr_block` and `ipv6_ips`. IPv6 is not on by default: the data centre must be created with it (the
+  doc does not say how; unverified). IPv6 for the NSG: not mentioned.
+
+### 5. Backups and snapshots
+
+- **Snapshot** (https://docs.ionos.com/cloud/backup-and-storage/images-snapshots/snapshots.md): an image of the **whole provisioned
+  block-storage volume, including free space** (a 100 GiB volume with 10 GiB of data is a 100 GiB snapshot), **not incremental**,
+  only for the **Essential** performance class (so not for a Cube's NVMe, for which Cubes say DAS snapshots exist: the Cubes page
+  says images and snapshots can be made from DAS; the two pages are unreconciled; unverified which disks). "No usage quota" and no
+  retention period; none is deleted automatically. A snapshot uses the storage quota of the contract. **Bound to the location** where it
+  was made, usable in several data centres at that location. Price: **0.04 EUR per GB per 30 days** (0.0533 USD) (price list). Whether it
+  **survives deleting the volume, server or data centre** is **not stated** (unverified). Treat it as outliving (it is a contract-level
+  image in the API, an unverified recollection) and list it before saying the cost is zero.
+- **Backup service** (https://docs.ionos.com/cloud/backup-and-storage/backup-service/overview.md): Acronis-based; **Backup Units** hold the
+  data; a **backup agent must run on the server** (installed automatically for public images with a bootable volume, otherwise by hand;
+  it needs internet). Storage **0.07 EUR/GB per 30 days** (0.082 USD); Object Storage target 0.016 EUR/GB plus a feature pack of 5.88
+  EUR per VM per 30 days; Acronis packs 1.68 EUR each. Creating a unit needs the "Create Backup Units" privilege. Whether backups outlive
+  the server or data centre: not stated (unverified). The Terraform volume takes `backup_unit_id` (creation only); the Terraform resource for
+  units was not read. This is **not** a one-flag backup like Hetzner's. A Terraform path with an agent and a unit is more than OpsCrew's
+  "optional backups" probably wants.
+- **No automatic snapshot schedule** was found in the Compute Engine docs I read (unverified).
+
+### 6. Regions
+
+IONOS calls them **locations**; a data centre is created in one (`location`, immutable). Codes and cities are from
+https://docs.ionos.com/cloud/support/general-information/service-catalog (availability table), https://cloud.ionos.com/data-centers
+(operator and city) and the Terraform datacenter doc (valid values). Coordinates are approximate and mine.
+
+| Location | City, country | ~Lat, lon | Dedicated Core CPU families | vCPU server | Cubes | OpsCrew key |
+|---|---|---|---|---|---|---|
+| `de/fra` | Frankfurt a.M. (legacy), DE | 50.1, 8.7 | Milan, Haswell/Broadwell, Skylake, Ice Lake | no | no | eu-central (legacy) |
+| `de/fra/1` | Frankfurt a.M. 1 (Equinix), DE | 50.1, 8.7 | Turin | yes | yes | **eu-central** |
+| `de/fra/2` | Frankfurt a.M. 2 (Digital Realty), DE | 50.1, 8.7 | Turin, Sierra Forest | yes | yes | eu-central (alt) |
+| `de/txl` | Berlin, DE | 52.5, 13.4 | Milan, Skylake, Ice Lake, Sierra Forest | yes | yes | eu-central (alt), **eu-north (far)** |
+| `de/fkb` | Karlsruhe, DE | 49.0, 8.4 | Haswell/Broadwell | no | no | closed to new data centres |
+| `gb/lhr` | London (Stockley Park), UK | 51.5, -0.5 | Skylake, Ice Lake | yes | yes | none (eu-west is not an OpsCrew key) |
+| `gb/bhx` | Worcester, UK | 52.2, -2.2 | Milan, Ice Lake | yes | yes | none |
+| `fr/par` | Paris, FR | 48.9, 2.4 | Skylake, Ice Lake | yes | yes | none |
+| `es/vit` | Logroño, ES | 42.5, -2.4 | Skylake, Ice Lake | yes | yes | none |
+| `us/ewr` | Newark, NJ (Piscataway), US | 40.5, -74.5 | Haswell/Broadwell, Ice Lake | yes | yes | **us-east** |
+| `us/mci` | Lenexa, KS, US | 39.0, -94.7 | Milan, Ice Lake | yes | yes | us-east or us-west (far for both) |
+| `us/las` | Las Vegas, NV, US | 36.2, -115.1 | Milan, Haswell/Broadwell | no | no | **us-west** (Dedicated Core only) |
+
+- **Mapping.** eu-central -> `de/fra/1` (vCPU and Cubes there; Turin). **eu-north -> `de/txl` Berlin**, which is about 800 km from
+  Stockholm and about 1,200 km from Helsinki: a **far mapping**; there is nothing in the Nordics. **us-east -> `us/ewr`.**
+  **us-west -> `us/las`**, which has **no vCPU servers and no Cubes**, only Dedicated Core on Milan (and older Haswell), the most
+  expensive kind; an alternative is `us/mci` (Lenexa, Kansas), about 1,900 km from the Pacific coast (also far).
+  **ap-southeast has no location**: IONOS Cloud has no data centre in Asia or Oceania. If every key must map, it can only map to a
+  far location (`de/fra/1` or `us/las`, over 10,000 km from Singapore), and the mapping is misleading. Recommend the definition leaves
+  ap-southeast out if the contract allows an incomplete map, or maps it to the nearest US location and says so.
+- **Legacy `de/fra` and `de/fkb`:** do not offer. Whether the API still accepts `de/fra` for new data centres is unverified; the
+  Terraform doc lists it as valid, and the catalogue says Karlsruhe is not available for new data centres.
+- Newest sites: `de/fra/1` and `de/fra/2` (release notes mention a "new data centre `de/fra/1`", search summary of
+  https://docs.ionos.com/cloud/release-notes/previous-releases/2026/august-2026, which supports all services except Cloud GPU VMs).
+- **Which contract may use which location** (a US Inc. contract against EU sites and the reverse) is **unverified**.
+- The Terraform `data "ionoscloud_location"` and `GET /locations` return the live list with `cpuArchitecture` and `imageAliases`;
+  `/locations` needs a token (401 without), so a live check at plan time is possible.
+
+### 7. Prices
+
+A **public price list** exists as web pages (no public price API found; unverified): EUR
+https://docs.ionos.com/cloud/support/general-information/price-list/ionos-cloud-eur-en, USD `.../ionos-cloud-inc`, German entity
+`.../ionos-cloud-gmbh-de` (not read; its currency is presumably EUR). Both read lists carry **version v2026-10-29, valid from
+2026-10-29**. Prices are **net**, **per hour**, per component. Dated 2026-11-22/24 reading.
+
+**Components (EUR net, USD net):**
+
+| Item | EUR | USD |
+|---|---|---|
+| vCPU (per vCPU hour) | 0.012 | 0.013 |
+| RAM, vCPU servers (per GB hour) | 0.002 | 0.0022 |
+| Dedicated Core, Milan (per core hour) | 0.036 | 0.045 |
+| Dedicated Core, Turin | 0.042 | 0.054 |
+| Dedicated Core, Haswell, Skylake, Ice Lake | 0.04 | 0.05 |
+| Dedicated Core, Sierra Forest | 0.046 | 0.056 |
+| RAM, Dedicated Core (per GB hour) | 0.0045 | 0.0071 |
+| Essential block storage (per GB per 30 days) | 0.04 | 0.0533 |
+| Balanced / Performance (per GB per 30 days) | 0.07 / 0.15 | 0.08 / 0.17 |
+| Snapshot (per GB per 30 days) | 0.04 | 0.0533 |
+| Reserved IPv4 (per 30 days) | 5.00 | 6.00 |
+| Outgoing traffic above 2 TB (per GB) | 0.030 | 0.036 |
+
+HDD prices are not on either list (unverified). Volume sizes: Essential, Balanced and Performance 1 GB to 4 TB each (Compute
+Engine FAQ). The Terraform `HDD`, `SSD` types look like the legacy ones.
+
+**Small configurations, hourly and monthly (730 hours; storage priced per 30 days, rounded to 30 days: my arithmetic):**
+
+| Configuration | Kind | EUR/hour | EUR/month | USD/hour | USD/month |
+|---|---|---|---|---|---|
+| Basic Cube XS: 1 vCPU, 2 GB, 60 GB NVMe | Cube | 0.007 | 5.11 | 0.008 | 5.84 |
+| Basic Cube S: 2 vCPU, 4 GB, 120 GB | Cube | 0.013 | 9.49 | 0.014 | 10.22 |
+| Basic Cube M: 4 vCPU, 8 GB, 240 GB | Cube | 0.024 | 17.52 | 0.026 | 18.98 |
+| Memory Cube S: 2 vCPU, 8 GB, 120 GB | Cube | 0.017 | 12.41 | 0.019 | 13.87 |
+| vCPU 1, 2 GB, 20 GB Essential | vCPU | 0.016 + storage | 11.68 + 0.80 = 12.48 | 0.0174 + storage | 12.70 + 1.07 = 13.77 |
+| vCPU 2, 4 GB, 40 GB Essential | vCPU | 0.032 + storage | 23.36 + 1.60 = 24.96 | 0.0348 + storage | 25.40 + 2.13 = 27.53 |
+| vCPU 4, 8 GB, 80 GB Essential | vCPU | 0.064 + storage | 46.72 + 3.20 = 49.92 | 0.0696 + storage | 50.80 + 4.26 = 55.06 |
+| Dedicated Core Milan 1 core, 2 GB, 20 GB | Dedicated Core | 0.036 + 0.009 + storage | 32.85 + 0.80 = 33.65 | 0.045 + 0.0142 + storage | 43.15 + 1.07 = 44.22 |
+
+- The **Cube's cheapest size (XS)** is the cheapest line and includes its disk; **vCPU servers** are the next cheapest and have a
+  separate volume (so a stopped one keeps the disk bill). Dedicated Core is the dearest.
+- The **old** Cube templates (XS 1 vCPU / 1 GB / 30 GB, 0.0028 EUR/hour, etc., "available until 30 September 2024") are still on the
+  EUR list; they are gone for new orders by that date, so do not offer them.
+- The Cube prices were shown in USD on https://cloud.ionos.com/compute/cloud-cubes (the site picked USD for this reader); the list
+  rows equal the Inc. list.
+- **The Cube's disk is part of the Cube** (60 to 960 GB NVMe, no choice of size) and cannot be resized, deleted or snapshotted as
+  block storage in the usual way; Cube and Dedicated Core/vCPU also differ in what Terraform needs (`template_uuid`, no `cores`/`ram`).
+- **Not read:** a GBP list for the UK entity, a German-entity list, VAT rates by country, any price for IPv4 above the first
+  dynamic address beyond the reserved price, per-location price differences (the lists have none: one price per component for every
+  location of that contracting entity; unverified).
+
+### 8. How an account maps to an app
+
+- **The virtual data centre (VDC)** is the container of every resource: servers, volumes, LANs, NICs, IP blocks, NSGs. Everything in
+  Terraform takes `datacenter_id`. It is created by `ionoscloud_datacenter` (`name`, `location`, optional `description`), with the
+  API, or in the DCD. **The location is immutable.** Creating one is **allowed for the contract owner, administrators and users with
+  the "Create Data Center" privilege** (https://docs.ionos.com/cloud/compute-services/compute-engine/how-tos/set-up-dedicated-core.md);
+  a normal user otherwise sees read-only. An empty data centre has **no price** in either price list (it is billed for what is in it;
+  unverified for an empty one, but no line exists).
+- **Limits per contract:** `coresPerContract`, `ramPerContract`, `ssdLimitPerContract`, `hddLimitPerContract`, `reservableIps`,
+  `dynamicIpsLimitTotal`, `securityGroupsPerVdc` (and more), exposed by `GET /contracts` (fields listed in the API reference page). The
+  **default values are not published**; the limits are per **contract**, not per VDC, and per-server maxima exist (`coresPerServer`,
+  `ramPerServer`; docs: Dedicated Core up to 62 cores and 230 GB, vCPU 60 and 230 GB). Contract resource limits "can be raised by contacting
+  IONOS Cloud Support" (Cubes page). The contract API can be read before a create to say "quota is the problem".
+  The number of data centres per contract: **unverified**; no limit was found.
+- **Names and labels:** data-centre names, server names and volume names are free text; **uniqueness is not enforced** (unverified; the docs
+  say nothing) and Terraform's id is the UUID, which makes them safer than Kamatera's. `ionoscloud_server` takes **`label` blocks**
+  (`key`, `value`, several allowed), so an app can be marked with `opscrew-app = <app>` labels; whether a **list call can filter by label** is
+  **unverified** (the labels API, `/labels`, was not read). The server `hostname` takes lowercase letters, digits and `-`, up to 63 characters.
+- **Finding an app's servers:** with one VDC per app, `GET /datacenters/{id}/servers` lists them, and the VDC `name` carries the app
+  (`opscrew-<app>`). Terraform state holds the ids.
+- **Idempotency:** none. A `POST` returns **202 Accepted** with a status URL; a retry after a timeout can create a second resource. The
+  provider waits on the request status itself (timeouts of 60 minutes). OpsCrew's check before retry is `GET /datacenters/{id}/servers?depth=1`
+  (unverified shape) by name or label.
+- **Async:** every create, change and delete returns a **request id** in a header, polled at `GET /cloudapi/v6/requests/{id}/status`
+  (or `requests/{id}`); statuses `QUEUED`, `RUNNING`, `DONE`, `FAILED`; `RequestStatusMetadata` carries `status`, `message`, `targets`
+  (list-requests page). While a resource is being made its metadata shows `"state": "BUSY"` (then `AVAILABLE`; the later value is
+  unverified).
+- **Deleting a data centre deletes its servers, volumes, NICs and NSGs** (the NSG page: "Deleting a data center deletes all its VMs and their
+  associated NSGs and rules"). The plain-API behaviour for **volumes** and the **precondition** (a data centre with resources may be refused?)
+  was not found (unverified).
+
+### 9. Ubuntu 24.04 image, default user, cloud-init
+
+- **Image names and aliases.** `image_name` accepts a name, an id or an **alias**. The docs' examples use `ubuntu:latest`, `ubuntu:latest_iso`
+  (provider `docs/data-sources/image.md`). The CLI page filters by `imageAliases=ubuntu:latest`; a version-specific alias such as
+  `ubuntu:24.04` is the likely form but **no page confirms it** (unverified). The image data source joins `name` and `version` as
+  `[name]-[version]` and requires an exact match. The doc mentions `ubuntu-20.04.6` only in a comment. Public images are **updated and
+  replaced often**, the version is in the name, and the list is per location: look the image up (`data "ionoscloud_image"` with
+  `type = "HDD"`, `location`, `name = "ubuntu"`, `version = "24.04"`, `cloud_init = "V1"`, and `image_alias` for the alias) at plan time
+  rather than pin a name. `ubuntu:latest` is Ubuntu **LTS latest**, which may be 24.04 or newer (unverified).
+- **Default user:** **not stated** in any page read (unverified). Public IONOS Linux images are believed to log in as `root` with the key
+  (unverified); the plan must check on a live account.
+- **SSH key:** for public Linux images the key is placed at creation by `ssh_keys` / `ssh_key_path` on the server (immutable) or in
+  `user_data`. A server with neither the key nor an `image_password` is refused (docs). The DCD offers an SSH Key Manager; the Terraform
+  provider has no resource for it.
+- **cloud-init:** "all public IONOS Cloud Linux images support cloud-init" (https://docs.ionos.com/cloud/compute-services/compute-engine/how-tos/boot-cloud-init.md).
+  User data must be a **bash script (`#!`) or cloud-config (`#cloud-config`)**, plus include files and boothooks; **API: base64**; **set only at
+  provisioning**, cannot change later or apply to an existing instance; runs in the first boot cycle. Size limit not stated. Image data
+  source `cloud_init` is `V1` or `NONE`. The `user_data` goes on the **volume**, not on the server.
+- **Time to ready:** not stated. The request goes `QUEUED` -> `RUNNING` -> `DONE`, and the server then has to boot; seconds are
+  unverified.
+
+### 10. Errors and limits
+
+- **Error shape** (list-requests page, API schema): `{ "httpStatus": <int>, "messages": [ { "errorCode": "<app code>", "message": "<text>" } ] }`.
+  Codes: 400, 401, 403, 404, 409, 422, 429, 500, 503 (get-started page). A forbidden create (missing privilege) is 403 (unverified body).
+  A real quota-exceeded body was not seen (unverified); the contract's limits can be read first.
+- **Rate limit:** exists. A 429 is "request rate limit exceeded". **Successful responses carry** `X-RateLimit-Remaining`, `X-RateLimit-Limit`
+  (average requests a minute) and `X-RateLimit-Burst` (concurrent requests). Values are **not published**. A 429's `Retry-After` is not
+  documented for the Cloud API (it is for other IONOS services); use backoff. Limits are said to be per contract for other products.
+- **Delete protection:** none found for servers, volumes or data centres in the docs read (unverified). The server has `vm_state`
+  and the Terraform `allow_replace`. No locking was found.
+- **Resize:** **live vertical scaling** (no reboot) for Linux: cores and RAM scale up while running, NICs and volumes can be added; downscale
+  of NICs and volumes live; a cores/RAM **downscale needs a reboot**? The FAQ says upscale only for CPU/RAM live (unverified for downscale).
+  Windows: CPU only, and over eight cores needs a reboot. RAM hot plug above 240 GB restarts the VM. **A Cube cannot be resized** (template
+  fixed). **A volume can grow but not shrink**; its type and zone are immutable. Disk resize inside the OS (filesystem) is the image's
+  cloud-init growpart behaviour: unverified.
+- **Removal:** DELETE returns **202** and the request runs to `DONE`; effect is not instantaneous. A server delete **leaves its volumes**
+  billing; a data-centre delete removes everything in it (section 8). A delete returns 404 afterwards (unverified).
+- **Power states:** `RUNNING`, `SHUTOFF` (Dedicated Core) and `SUSPENDED` (Cube) via `vm_state`; `AVAILABLE`/`BUSY` as resource states.
+  A server stopped from inside the OS is **not** deallocated (section 3).
+- **Other:** Terraform timeouts 60 minutes; the FAQ's note on the dynamic public IP limit (section 4); RAM maximum 230 GB vs 240 GB are
+  contradictory in the docs.
+
+### What this means for OpsCrew
+
+- **Terraform provider.** `ionos-cloud/ionoscloud` v6.7.42 (MPL-2.0, vendor-made, partner-premier tier, on the OpenTofu registry, a release every
+  few weeks, last 2026-11-23). It covers the data centre, server, volume, NIC, firewall rule, LAN, IP block and snapshot-as-image source, so
+  unlike Kamatera a **Terraform-only provider is possible** (`firewallResourceType` has an honest value). Pin an exact version in the template.
+  Open question for the lead: a snapshot **resource** was not found; the snapshot drill and "snapshot before destroy" may need the connector
+  (API) rather than Terraform, as for Kamatera.
+- **Billing model for the definition: hourly, billed to the minute, post-paid, plus small block-storage and reserved-IP lines.** There is no monthly
+  plan, no setup fee and no minimum term in the price lists. Use the **vCPU server** type (Linux, plain cores and RAM, 1 to 60 vCPUs, available in
+  all non-legacy EU and US sites except `us/las`) with an **Essential** volume, or the **Cube** (cheapest, but fixed templates, no resize, no
+  Essential snapshots; available in the same places). The definition needs a **dated static price table** (this section's) and two currencies by
+  contracting entity: EUR and USD (the price list's `valid from 2026-10-29` is its date). **Stopped is not free:** OS-level shutdown keeps the full
+  rate; a console/API stop frees cores and RAM but **keeps the volume bill and the reserved IP**; a suspended Cube is billed (the two Cube pages
+  disagree). Say that only a delete ends the cost, and that deleting a server alone leaves its volumes, deleting the data centre removes all.
+  Public IPv4: the first dynamic address is free (a reserved one is 5 EUR / 6 USD per 30 days; OpsCrew need not reserve one, but a dynamic
+  address may change at stop/start: unverified). Traffic: 2 TB a month free per contract.
+- **Credentials and scope.** A **token** (`IONOS_TOKEN`), 1 hour to 365 days, **no documented scoping**; the token acts as its user. Setup should say:
+  make a **dedicated sub-user** in a group with the "Create Data Center" privilege (and "Create Backup Units" only if backups are used), make a
+  token with a TTL of at most 90 days, and put only `IONOS_TOKEN` (never `IONOS_USERNAME` and `IONOS_PASSWORD`, which would need a 2FA-less
+  account) in the agent's environment. The agent's environment filter must pass `IONOS_TOKEN` and no other `IONOS_` variable except
+  `IONOS_CONTRACT_NUMBER` (resellers). Whether a user with the create privilege can only touch its own data centres is **unverified**; a user
+  who is an administrator can touch everything in the contract, and a contract owner's token is account-wide. Likely JWT, unverified; redact
+  the exact value. The account must be a **business** contract (the price list says commercial use only; unverified for sign-up).
+- **The data centre as the app's container.** Unlike OVHcloud's project (made by the user, given as a variable), an IONOS data centre can be
+  **created by the Terraform module** with `ionoscloud_datacenter` and costs nothing by itself. Recommended mapping: **one data centre per app**,
+  named `opscrew-<app>` (a name any user can read in the DCD), made by the module with `location` from the region map and removed with it.
+  This makes removal one step (a data-centre delete takes everything with it, NSGs and volumes too) and finds the app's servers by data centre.
+  The cost: the `location` is immutable, so changing region means a new app, and a user with a privilege-limited token must have "Create Data
+  Center". If the lead wants the OVHcloud pattern, an optional root variable `datacenter_id` (the user creates the data centre, OpsCrew
+  adds the server) could be offered **in addition**; it needs a user who may edit that data centre and hides the "delete takes all" benefit, so
+  prefer the module-made data centre for the first cut. Name uniqueness is not enforced, so check for an existing `opscrew-<app>` before
+  creating.
+- **Firewall path.** NIC firewall: set `firewall_active = true` on the NIC, add one `ionoscloud_firewall` per allowed port (22, 80, 443; one rule per
+  resource, not an inline list: the inline-removal bug), type INGRESS, and rely on the "active with no rules blocks all incoming" rule. Or the newer
+  **NSG** (`security_groups_ids`), whose resource names are unverified. The default for a new NIC is unverified, so **always set `firewall_active`
+  and verify the result** with a port check after the apply. A host firewall inside the server (cloud-init) as a second layer is optional.
+- **Removal.** Delete the data centre (async, `202` then request `DONE`): servers, volumes and NSGs go. **Snapshots and backups are not shown to go
+  with it** (unverified for both), so `serverSnapshotsOutliveServer` and `backupsOutliveServer` should take the cautious value `true` until a live
+  test says otherwise. A data centre delete is destructive, so keep the typed confirmation by the data-centre name.
+- **What the contract may lack.** (1) **Two currencies by contracting entity** (EUR, USD), which a single-currency `Price` may not hold; the contract's
+  currency needs a field. (2) **A cloud-init `user_data` on the volume, immutable**, with the base64 question: the module must say whether it
+  encodes. (3) **A stop that does not stop billing** and depends on how the server is stopped. (4) **Billing component lines** (compute, volume,
+  IPv4, traffic above 2 TB) so a plain "monthly price" misleads; a per-component price shape. (5) **No Asia location**, so the region map has a hole
+  for ap-southeast, and `eu-north` is a far map to Berlin. (6) **Account/contract-wide quotas** (cores, RAM, SSD, dynamic IPs) with no published
+  default, but a readable contract endpoint. (7) A **token with no scope** whose power is its user's, and an administrator/owner token is the
+  whole account. (8) **A server that cannot be made without a key or password** and a key that is **immutable** (a key change replaces the volume).
+  (9) **Async request ids** for every change (the connector must poll `requests/{id}/status`). (10) **Business-only** sign-up (unverified).
