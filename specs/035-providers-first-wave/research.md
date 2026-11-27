@@ -1054,3 +1054,181 @@ Computed from the calculator 2026-11-22 (USD, includes a 20 to 80 GB system disk
 - **Still for the live pass (T3533):** whether the startup script runs on later boots; the first real
   `nft -f` of the rules (no root here); the seconds to ready and how long the server is open before the rules
   load; the `(n)` behaviour; what terminate leaves behind.
+
+## R6. UpCloud
+
+Read 2026-11-28 from: https://developers.upcloud.com/1.3/ ; /1.3/1-introduction/ ; /1.3/2-architecture/ ; /1.3/3-accounts/ ; /1.3/4-pricing/ ; /1.3/5-zones/ ; /1.3/7-plans/ ; /1.3/8-servers/ (first 100000 of 121245 chars) ; /1.3/9-storages/ ; /1.3/11-firewall/ ; /1.3/12-tags/ ; /1.3/24-api-tokens/ ; https://upcloud.com/docs/guides/getting-started-upcloud-api/ ; https://upcloud.com/docs/products/cloud-servers/ ; /plans/ ; /faq/ ; /availability/ ; https://upcloud.com/docs/products/networking/billing/ ; https://upcloud.com/docs/products/block-storage/billing/ ; https://upcloud.com/docs/getting-started/billing/ ; https://upcloud.com/docs/changelog/2026-04-15-starter-premium-servers/ ; https://raw.githubusercontent.com/UpCloudLtd/terraform-provider-upcloud/main/docs/index.md, docs/resources/server.md, docs/resources/firewall_rules.md, docs/resources/storage.md, docs/data-sources/storage.md, docs/data-sources/hosts.md ; https://api.github.com/repos/UpCloudLtd/terraform-provider-upcloud/releases/latest ; GitHub issue search for the same repo (firewall). Failed (HTTP 403/404 or empty): upcloud.com/pricing (403, twice), upcloud.com/products/cloud-servers (403), calc.upcloud.com (JS page, no data), registry.terraform.io (empty JS page), registry.opentofu.org API (404), developers.upcloud.com 6-/7-prices/8-... guessed paths (404), docs billing/ cloud-init pages (404), /docs/products/networking/firewall/ (fetch gave no text). No instructions aimed at AI agents were seen in any page. The pricing page, the firewall page, the plans page and the Starter and Premium changelog were then read in a browser (sections 3, 4 and 7), and the plan and template names came from a GitHub code search of the provider's and `upcloud-cli`'s repositories. No account was created and no authenticated call was made.
+
+### 1. API and sign-in
+- Base URL `https://api.upcloud.com/`, version in path, e.g. `/1.3/server`; current API version is 1.3 (/1.3/2-architecture/, /1.3/1-introduction/).
+- Bearer API token is the primary method: `Authorization: Bearer <token>` (/2-architecture/). HTTP Basic "is also accepted but is discouraged and will be deprecated and disabled later"; docs recommend a sub-account for Basic (/2-architecture/). To use Basic you must first enable API access in the control panel (/2-architecture/).
+- Token format: prefix `ucat_` + id, e.g. `ucat_01DQE3AJDEBFEKECFM558TGH2F` (/24-api-tokens/). Created in control panel (Account > API tokens), via API or `upctl` (getting-started-upcloud-api, /2-architecture/). Shown once.
+- Create: `POST /1.3/account/tokens` fields `name` (1-1024 chars, required), `expires_at` (RFC 3339) or `expires_in` (e.g. `1h30min`), max 8760h (365 days), `can_create_tokens` (bool, default false), `allowed_ip_ranges` (0-100 CIDR/IP; empty list = denied everywhere; unset = account IP filters, else 0.0.0.0/0). Also `GET /1.3/account/tokens`, `GET/DELETE /1.3/account/tokens/{id}` (/24-api-tokens/). Tokens are NOT scoped by resource/permission in the docs read; scoping is by IP range and expiry only. The getting-started guide says "creating a token under a dedicated subaccount allows stricter permission scoping" (getting-started-upcloud-api; whether a token inherits a sub-account's permissions: unverified).
+- Sub-account: `POST /1.3/account/sub` with `allow_api` (yes/no; "no effect on API tokens"), `allow_gui`, `roles` (billing, aux_billing, technical), `server_access` (list of {uuid or `*`, storage yes/no}), `storage_access` (UUIDs or `*`), `tag_access` (list of {name, storage}), `network_access` (default `*`), `ip_filters` (CIDR/range/IP; API only from those) (/3-accounts/). Sub-accounts can only access servers and storages and their own details (/3-accounts/). Username 4-64 chars; currency EUR/GBP/USD/SGD (/3-accounts/).
+- Terraform provider env vars: `UPCLOUD_USERNAME`, `UPCLOUD_PASSWORD`, `UPCLOUD_TOKEN` (token marked "experimental"; also read from system keyring populated by `upctl account login`). Provider args `request_timeout_sec` (default 120), `retry_max`, `retry_wait_min_sec`, `retry_wait_max_sec` (docs/index.md).
+- "Who am I": `GET /1.3/account` returns `credits`, `username`, `resource_limits` (`cores`, `memory` MiB, `storage_standard`, `storage_hdd`, `storage_maxiops` MiB, `storage_total`, `public_ipv4`, `public_ipv6`, `detached_floating_ips`, `networks`, `routers`, `network_gateways`, ... managed-service limits) (/3-accounts/). Per /4-pricing/ the currency of the account is read from the same endpoint (field name: unverified).
+
+### 2. Terraform provider UpCloudLtd/upcloud
+- Latest release read: v5.49.1, published 2026-11-09 (api.github.com releases/latest). Docs say `version = "~> 5.0"`, Terraform >= 1.0.0 (docs/index.md). Licence, official/partner tier, OpenTofu registry presence: unverified (registry pages did not render; the OpenTofu API URL I tried 404'd, which does not prove absence).
+- `upcloud_server` (docs/resources/server.md): required `hostname`, `zone`; `plan` (or `cpu`+`mem` for custom), `title`, `labels` (map), `tags`, `metadata` (bool; "Required for recent cloud-init-based templates"), `user_data` (URL or script body), `firewall` (bool; enables Public & Utility firewall, independent of `firewall_private`), `firewall_private*`, `simple_backup {plan = daily|dailies|weeklies|monthlies, time = hhmm}` (cannot be combined with per-storage `backup_rule`), `server_group`, `host`, `hot_resize`, `boot_order`, `nic_model`, `video_model`, `timezone`.
+  - `template { storage (UUID or template name), size (GB), title, tier, encrypt, filesystem_autoresize, delete_autoresize_backup, backup_rule {interval, retention, time} }`.
+  - `network_interface { type (public|utility|private; private needs `network`), index, ip_address, ip_address_family (IPv4|IPv6), network, bootable, source_ip_filtering, additional_ip_address }`; set `index` explicitly.
+  - `login { user, keys (list of public keys), create_password, password_delivery (none|email|sms) }`.
+  - Which arguments force replacement, timeouts block, user_data size limit: not documented on the page (unverified). Data-source example warns a new template image version will replace the server unless `lifecycle { ignore_changes = [template[0].storage] }` (docs/data-sources/storage.md).
+  - Import: `terraform import upcloud_server.x <server-uuid>`.
+- `upcloud_firewall_rules` (docs/resources/firewall_rules.md): one resource per server (`server_id`); repeated `firewall_rule` blocks evaluated in the order defined; fields `action` (accept|drop), `direction` (in|out), `comment`, `family` (IPv4|IPv6), `protocol` (tcp|udp|icmp|""), `icmp_type`, `source_address_start/end`, `destination_address_start/end`, `source_port_start/end`, `destination_port_start/end` (start and end both required; ports only tcp/udp). A default rule may be given with only `action` and `direction` and "should be defined last". Max 1000 rules per server. Needs `firewall = true` on the server. Import ID: example is a UUID, presumed server UUID (not confirmed in the doc).
+- `upcloud_storage`: `size`, `title`, `zone` required; `tier`, `encrypt`, `labels`, `backup_rule {interval (daily or weekday), time (UTC hhmm), retention (days)}`, `clone {id}`, `import {...}`; import ID = storage UUID. A storage with `backup_rule` cannot be attached to a server that has `simple_backup`.
+- Other resources I did not read: `upcloud_floating_ip_address`, `upcloud_network`, `upcloud_server_group`, `upcloud_storage_backup` (existence unverified; I saw no on-demand backup resource in what I read). Open issues seen: #1082 "IPv6 not supported in upcloud_firewall_ruleset", #1027 "Purpose of firewall_ruleset unclear" (these concern a different resource, `upcloud_firewall_ruleset`, not `upcloud_firewall_rules`; the issue search was limited to the word "firewall").
+
+### 3. Billing
+
+Read 2026-11-28 in a browser from https://upcloud.com/pricing/ ("Pricing updated: 24/10/2026"; it answers 403 to
+plain fetches) and https://upcloud.com/docs/products/cloud-servers/plans/.
+
+- **Prepaid, by the hour:** UpCloud's pricing FAQ describes a prepaid balance from which services are deducted
+  hourly. When the credits run out, active resources are disabled until the balance is positive (/3-accounts/).
+- **By the starting hour, capped:** Starter, Premium and Cloud Native plans are each "billed by the starting hour,
+  maximum of 28 days per month" (pricing page). So the hourly rate is the monthly price / 672, and a month of 730
+  hours costs the monthly price. The plans page says every plan has a capped monthly price but is billed by the
+  hour. Prices exclude local taxes (VAT).
+- **EUR only:** payments in USD, GBP or SGD are exchanged to EUR (pricing FAQ). The account's billing is in EUR
+  whatever the payment currency.
+- **What ends the cost:** deleting a service stops its charges (pricing FAQ). The Cloud Native table says "Server
+  stopped, no charges"; the Starter and Premium tables don't, so a stopped Starter or Premium server is read as
+  still billing its plan (unverified until the live pass).
+- **Included:** one public IPv4 address per plan; an additional public IPv4 or a floating IP is €3.47 a month;
+  public IPv6 €0.00; transfer in and out €0.00 under the Fair Transfer Policy; firewall, SDN private network and
+  router €0.00 (pricing page). Outbound SMTP (port 25) is closed on new accounts until support opens it (section 4).
+- **Free trial:** new sign-ups get free credit, and the firewall is locked to certain ports during the trial
+  (pricing FAQ; firewall docs). A 30-day money-back on the first payment.
+
+### 4. Firewall and networking
+
+Read 2026-11-28 in a browser from https://upcloud.com/docs/products/networking/firewall/, and from the provider's
+`examples/resources/upcloud_firewall_rules/resource.tf` and `docs/resources/server.md`.
+
+- **Two firewalls:** the **Public & Utility Firewall** (public and utility interfaces, IPv4 and IPv6, **stateless**,
+  the first matching rule from the top wins, one ruleset per server, at most 1000 rules, not shareable) and the
+  **SDN Firewall** (SDN private networks only, IPv4 only, stateful, rulesets shared like security groups, a drop
+  rule wins whatever the order) (firewall docs).
+- **Stateless:** the docs say that users must allow both incoming and outgoing traffic explicitly. Return traffic of
+  the server's own outgoing connections (package and image downloads, the app's calls to other services) is not let
+  in by itself: it needs inbound rules for the ephemeral ports (32768-60999 on Ubuntu), open to every source. A rule
+  can match a source port, but a stateless rule can't tell a reply from a new connection.
+- **On and off:** when the firewall is disabled all traffic is allowed; when enabled, traffic is filtered by the
+  rules (firewall docs). Terraform's `firewall` (bool) on `upcloud_server` turns on the Public & Utility firewall,
+  and `upcloud_firewall_rules` (one per server) holds its rules (section 2). The default rule's action on a new
+  server, and what an enabled firewall with no rule does, are not stated (unverified).
+- **Free:** all firewall features are included at no cost (firewall docs, pricing page).
+- **SMTP:** outbound port 25 is blocked on new accounts, shown in the server's firewall settings, and can't be
+  changed there; support lifts it after identity verification (firewall docs).
+- **Trial:** the firewall is locked during the free trial and allows only certain ports (firewall docs).
+- **Interfaces:** public, utility and private (SDN) (/8-servers/; in 1.3 `private` is SDN and the former private is
+  `utility`). Up to 5 public IPv4 addresses per server; public IPv6 free (pricing page).
+
+### 5. Backups and snapshots
+- Simple Backup: fixed monthly rate of +10%, +20%, +40% or +60% of the Cloud Server plan price, independent of the number of backups (block-storage/billing). Terraform `simple_backup.plan` values: daily, dailies, weeklies, monthlies.
+- Flexible and on-demand backups billed per GiB per hour (block-storage/billing). Snapshot price: not mentioned.
+- Create: `POST /1.3/storage/{uuid}/backup` (body `title`), 201, storage goes to `backuping`. List: `GET /1.3/storage/backup`. Restore: `POST /1.3/storage/{uuid}/restore`, 204, attached server must be stopped (else 409 `SERVER_STATE_ILLEGAL`). No dedicated delete-backup route documented; backups are removed via `DELETE /1.3/storage/{uuid}?backups=keep|keep_latest|delete` (default keep) or presumably deleting the backup storage itself (unverified). Templatize: `POST /1.3/storage/{uuid}/templatize`, maxiops only (`STORAGE_TIER_ILLEGAL`). Errors: `INSUFFICIENT_CREDITS` (402), `STORAGE_RESOURCES_UNAVAILABLE`, `STORAGE_STATE_ILLEGAL` (409) (/9-storages/).
+- Async: backup/clone/templatize run asynchronously; poll `GET /1.3/storage/{uuid}` until state `online`. Storage states: online, maintenance, cloning, backuping, syncing, error (/9-storages/).
+- Server delete: `DELETE /1.3/server/{uuid}?storages=0|1&backups=keep|keep_latest|delete`; requires `stopped`; releases IPs; kept storages can be reattached; `backups=delete` without `storages=1` not allowed; default `backups=keep`, so backups outlive the server by default (/8-servers/). Storage `backup_rule`: interval daily|mon..sun, time 0000-2359 UTC, retention 1-1095 days (/9-storages/).
+
+### 6. Regions
+- Per cloud-servers/availability (15 locations): au-syd1 Sydney AU; de-fra1 Frankfurt DE; dk-cph1 Copenhagen DK; es-mad1 Madrid ES; fi-hel1 and fi-hel2 Helsinki FI; nl-ams1 Amsterdam NL; pl-waw1 Warsaw PL; no-svg1 Stavanger NO; se-sto1 Stockholm SE; sg-sin1 Singapore; uk-lon1 London UK; us-chi1 Chicago US; us-nyc1 New York US; us-sjo1 San Jose US. No private-only zones listed on that page; the API `GET /1.3/zone` example also shows a `fi-fake-priv-cloud` private zone (parent fi-hel1) (/5-zones/). Whether plans are available in every zone: page says Cloud Servers are available in all locations; per-plan grid unreadable. Whether `GET /1.3/zone` needs auth: unverified.
+- au-syd1, dk-cph1, es-mad1, no-svg1, se-sto1 lack 2nd-4th generation CPUs (availability page; meaning of the dash is my reading).
+
+### 7. Prices
+
+Read 2026-11-28 in a browser from https://upcloud.com/pricing/ ("Pricing updated: 24/10/2026"; EUR, "Global price",
+before VAT; Helsinki had its own column for the discontinued General Purpose plans only). Plan **names** from the
+provider's examples (`PREMIUM-1xCPU-1GB`, `PREMIUM-2xCPU-4GB`) and `upcloud-cli`'s
+`internal/commands/server/plan_list.go`, which sorts plans by the prefixes `PREMIUM-`, `STARTER-` and `DEV-` (GitHub
+code search of `UpCloudLtd/terraform-provider-upcloud` and `UpCloudLtd/upcloud-cli`).
+
+- **Families** (since 2026-04-15, https://upcloud.com/docs/changelog/2026-04-15-starter-premium-servers/):
+  **Starter** (previous-generation AMD CPUs, Standard storage, 99.99% SLA, replacing the Developer plans),
+  **Premium** (latest AMD EPYC, MaxIOPS storage, 99.999% SLA, 1000 Mbps), **Cloud Native** (CPU and memory only;
+  storage and IP addresses bought apart). The Developer and General Purpose plans are listed as discontinued, no
+  longer available for deployment.
+- **Starter** (memory, cores, Standard storage, monthly): 1 GB/1/10 GB €3 (at most 5 per customer); 2 GB/1/20 GB €6;
+  2 GB/2/30 GB €8; 4 GB/1/30 GB €10; 4 GB/2/30 GB €12; 8 GB/2/40 GB €18; 8 GB/4/40 GB €20; 16 GB/2/50 GB €24;
+  16 GB/4/50 GB €28.
+- **Premium** (memory, cores, MaxIOPS storage, monthly): 1 GB/1/25 GB €5; 2 GB/1/25 GB €12; **2 GB/2/50 GB €16**;
+  **4 GB/2/50 GB €26**; **8 GB/2/100 GB €38**; **8 GB/4/100 GB €52**; 16 GB/2/150 GB €72; **16 GB/4/150 GB €92**;
+  16 GB/8/200 GB €148; then up to 512 GB/80 cores/500 GB €2552.
+- **Cloud Native:** from 4 GB/1 core €12 (no storage, no IP address).
+- **Block storage** (per GB a month, billed by the hour): MaxIOPS €0.220, Standard €0.115, Archive €0.100, custom
+  image €0.330.
+- **Backups:** Simple Backups at +10% (day plan: daily, kept 24 h), +20% (week plan: daily for 7 days), +40% (month
+  plan) or +60% (year plan) of the server plan's price; **flexible and on-demand backups €0.056 per GB a month**,
+  billed by the hour per GB (pricing page).
+- **Same price in every zone:** the current tables give one "Global price" (pricing page). The price API
+  (`GET /1.3/price`) answers per zone and in the account's currency (/4-pricing/), so a zone could still differ
+  (unverified).
+- **Plan names:** the Premium pattern `PREMIUM-<cores>xCPU-<memory>GB` is confirmed for `1xCPU-1GB` and `2xCPU-4GB`
+  only; the other names follow the pattern (unverified until `GET /1.3/plan` is read with a token). `GET /1.3/plan`
+  lists each plan's `core_number`, `memory_amount`, `storage_size`, `storage_tier` and `public_traffic_out`
+  (/7-plans/); whether it needs a token is not stated.
+
+### 8. Account, apps and names
+- Account is flat in the API; the billing docs mention "workspaces" each with their own billing and credits (getting-started/billing). No project concept in the API docs read.
+- Labels (preferred over tags): up to 255 per server, key 2-32 printable ASCII not starting with `_`, value 0-255 chars (/8-servers/). `GET /1.3/server` filters: `label` (case-insensitive, matches all values given), `tag` (`:` or `,` separated), `host`, `search`, `state`, `uuid`; `limit`/`offset`; exact label query syntax (key=value?) unverified.
+- Tags: 1-32 chars of `[A-Za-z0-9_]`; only the main account can create or modify tags; sub-accounts only list; assign via `POST /1.3/server/{uuid}/tag/{tags}`; tags must pre-exist; docs recommend labels instead (/12-tags/).
+- Hostname up to 128 chars, title 0-255 (/8-servers/). Uniqueness of hostname/title: unverified (not stated).
+
+### 9. Ubuntu 24.04, default user, cloud-init
+- Template list: `GET /1.3/storage/template` (/9-storages/, whose example shows only Ubuntu 22.04). The provider's
+  own docs and examples (`docs/index.md`, `docs/resources/server.md`, `docs/resources/firewall_rules.md`,
+  `examples/resources/upcloud_server/resource.tf`) all use `template { storage = "Ubuntu Server 24.04 LTS (Noble
+  Numbat)" }` with `metadata = true` (the docs say the metadata service must be on for recent cloud-init based
+  templates). `template.storage` takes a template's name or UUID.
+- Server create: `login_user` {username default `root`, up to 32 SSH keys}; "cloud-init templates require" SSH keys; `user_data` = URL or script run as root on first boot, ignored for non-Linux; `metadata` yes/no, metadata service at 169.254.169.254 reachable from inside only (/8-servers/); Terraform says `metadata` is required for recent cloud-init templates. Size limit of user_data and time to ready: unverified. New server passes through `maintenance` and then `started`.
+- Create limits: hostname 128 chars, storage 10-1024 GB per device, 1-10 interfaces (public, utility, private) (/8-servers/).
+
+### 10. Errors and limits
+- Error body `{"error": {"error_code": "...", "error_message": "..."}}`; 4xx client, 5xx server; 401 `AUTHENTICATION_FAILED`; `API_VERSION_INVALID`, `API_VERSION_OBSOLETE` (/2-architecture/). Seen codes: `INSUFFICIENT_CREDITS` (402), `SERVER_STATE_ILLEGAL`, `STORAGE_STATE_ILLEGAL`, `STORAGE_ATTACHED`, `STORAGE_DEVICE_LIMIT_REACHED`, `TAG_FORBIDDEN`, `SERVER_FORBIDDEN`, `SERVER_NOT_FOUND`, `FIREWALL_RULE_LIMIT_REACHED`. Exact quota error code (e.g. `*_LIMIT_REACHED` for cores/memory) and `ZONE_NOT_FOUND`: unverified.
+- Rate limits: not stated on the pages read (unverified). Resource limits come from `GET /1.3/account` `resource_limits`; how to raise them (support request): unverified.
+- Server states `started`, `stopped`, `maintenance`, `error`. Start `POST /1.3/server/{uuid}/start` (needs stopped; `start_type` sync default or async). Stop `POST .../stop` (needs started; `stop_type` soft default or hard; `timeout` 1-600 s then hard stop; state stays `started` until shutdown done). Restart `POST .../restart` (`timeout` required for soft; `timeout_action` destroy|ignore). Cancel `POST .../cancel`. Resize: `PUT /1.3/server/{uuid}`; decreasing cores or memory needs `stopped`. Rebuild `POST .../rebuild` (stopped only). Delete route and options: see section 5. Poll `GET /1.3/server/{uuid}` for `state` (/8-servers/). `GET /1.3/server_size` lists allowed core/memory combos.
+
+### What this means for OpsCrew
+
+- **Sign-in:** an API token only (`UPCLOUD_TOKEN`, `Authorization: Bearer`), the method UpCloud recommends; Basic
+  sign-in is discouraged and will be retired. The Terraform provider reads the same variable (marked experimental in
+  its docs). A token can't be limited to some resources, only to IP ranges and an expiry of at most 365 days, so the
+  guide recommends making it under a sub-account limited to servers and storage, with an expiry of 90 days or less.
+  `GET /1.3/account` is the credentials check (it returns the user name, the credits and the resource limits).
+- **Firewall:** the Public & Utility firewall is stateless. To let the server's own downloads and the app's outgoing
+  calls back in, its rules would have to open the ephemeral ports to every address, which SecOps rightly fails as
+  ports open to the whole internet, and a source-port rule can be spoofed. The server's own stateful nftables
+  firewall, which OpsCrew already installs first in a script first boot (Kamatera, issue #13), does what OpsCrew's
+  rules mean, and UpCloud runs `user_data` as a script on the first boot. Using it needs no contract change.
+- **Sizes:** design asks for 40 GB of disk at least (60 GB with PostgreSQL). Starter plans hold 10 to 50 GB and,
+  where they fit, cost more than Premium's 2 GB/2-core plan, so Premium plans at their included MaxIOPS disk are the
+  ones to offer: `PREMIUM-2xCPU-2GB` (50 GB, €16), `PREMIUM-2xCPU-4GB` (50 GB, €26), `PREMIUM-2xCPU-8GB` (100 GB,
+  €38), `PREMIUM-4xCPU-8GB` (100 GB, €52), `PREMIUM-4xCPU-16GB` (150 GB, €92), each by the hour at monthly / 672.
+- **Finding an app's servers:** labels (tags need the main account); names are plain `<app>` and `<app>-<name>`, as
+  on every provider, as the server's hostname and title, and the list is matched on the title.
+- **Snapshots:** on-demand backups of the server's disk through the API (€0.056 per GB a month), awaited by polling
+  the storage's state; a restore needs the server stopped. The provider has no snapshot resource.
+- **Provider backups:** Simple Backup's week plan (`simple_backup { plan = "dailies" }`, daily backups kept 7 days)
+  at +20% of the plan's price, like Hetzner's 20%.
+- **Regions:** every OpsCrew region has a zone: `eu-central` Frankfurt (then Amsterdam, Warsaw), `eu-north` Helsinki,
+  `us-east` New York, `us-west` San Jose, `ap-southeast` Singapore.
+
+#### To test live (needs a real account)
+
+- The Premium plan names beyond `PREMIUM-1xCPU-1GB` and `PREMIUM-2xCPU-4GB`, their availability in each zone (the
+  availability page shows Stockholm, Copenhagen, Stavanger, Madrid and Sydney without the newer CPU generations), and
+  whether `/plan`, `/price` and `/zone` answer without a token.
+- Whether a stopped Premium server keeps billing its whole plan.
+- That `user_data` holding a shell script runs once, as root, on the first boot of the Ubuntu 24.04 template with
+  `metadata = true`; its size limit; the default user and where `login.keys` go; the time to `started`.
+- Which `upcloud_server` arguments force a replacement, and whether `ignore_changes` on `user_data` and
+  `template[0].storage` keeps a later change from rebuilding the server.
+- Whether the server's backups (on-demand and Simple Backup) outlive a `terraform destroy` of the server, and the
+  route that deletes a backup.
+- The label filter's syntax on `GET /1.3/server`, whether titles must be unique, and the error codes for a used-up
+  resource limit, an unknown zone and no capacity; the API's rate limits.
+- Whether a token made by a sub-account carries only that sub-account's rights.
+- The Terraform provider's licence, tier and listing on the OpenTofu registry (its registry pages render only with
+  JavaScript).
