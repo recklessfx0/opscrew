@@ -216,6 +216,9 @@ importers:
       '@opscrew/provider-hetzner':
         specifier: workspace:*
         version: link:../providers/hetzner
+      '@opscrew/provider-ionos':
+        specifier: workspace:*
+        version: link:../providers/ionos
       '@opscrew/provider-kamatera':
         specifier: workspace:*
         version: link:../providers/kamatera
@@ -632,6 +635,9 @@ importers:
       '@opscrew/provider-hetzner':
         specifier: workspace:*
         version: link:../hetzner
+      '@opscrew/provider-ionos':
+        specifier: workspace:*
+        version: link:../ionos
       '@opscrew/provider-kamatera':
         specifier: workspace:*
         version: link:../kamatera

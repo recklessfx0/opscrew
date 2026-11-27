@@ -75,6 +75,9 @@ describe("sanitizeAgentEnv", () => {
     "KAMATERA_API_CLIENT_ID",
     "KAMATERA_API_URL",
     "CLOUDCLI_APICLIENTID",
+    // IONOS's API address and its SDK's other variables.
+    "IONOS_API_URL",
+    "IONOS_USERNAME",
     "ARM_CLIENT_ID",
     "ARM_SUBSCRIPTION_ID",
     "AZURE_CLIENT_ID",

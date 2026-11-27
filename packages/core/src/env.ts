@@ -61,6 +61,7 @@ const ALWAYS_PREFIXES = [
   "OVH_",
   "KAMATERA_",
   "CLOUDCLI_",
+  "IONOS_",
   "ARM_",
   "VSCODE_GIT_ASKPASS_",
 ];

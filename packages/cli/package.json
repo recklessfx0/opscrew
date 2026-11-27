@@ -94,6 +94,7 @@
     "@opscrew/provider-contabo": "workspace:*",
     "@opscrew/provider-digitalocean": "workspace:*",
     "@opscrew/provider-hetzner": "workspace:*",
+    "@opscrew/provider-ionos": "workspace:*",
     "@opscrew/provider-kamatera": "workspace:*",
     "@opscrew/provider-ovhcloud": "workspace:*",
     "@opscrew/providers": "workspace:*",

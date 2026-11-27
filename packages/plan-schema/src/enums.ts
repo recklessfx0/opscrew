@@ -145,6 +145,7 @@ export const VpsProviderSchema = z.enum([
   "contabo",
   "ovhcloud",
   "kamatera",
+  "ionos",
   "own",
 ]);
 export type VpsProvider = z.infer<typeof VpsProviderSchema>;

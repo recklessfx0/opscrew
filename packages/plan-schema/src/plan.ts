@@ -2917,6 +2917,8 @@ export const DEFAULT_IMAGES: Readonly<Record<CloudProvider, string>> = {
   ovhcloud: "Ubuntu 24.04",
   // Kamatera's module looks its image up by this name (os and code from its definition).
   kamatera: "Ubuntu 24.04",
+  // IONOS's module looks its image up by this name (its alias in the server's location).
+  ionos: "Ubuntu 24.04",
 };
 
 /**
