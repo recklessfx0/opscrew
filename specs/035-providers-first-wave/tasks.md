@@ -751,7 +751,8 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && npx vitest run --root packages/providers/ionos && pnpm lint`
   - Effort: xhigh
 
-- [ ] T3542 [US10] [US11] [US12] The definition, the module and SecOps's reading of its firewall
+- [x] T3542 [US10] [US11] [US12] The definition, the module and SecOps's reading of its firewall
+  (built 2026-11-27)
   - Owns: `packages/providers/ionos/src/definition.ts`, `definition.test.ts`, `src/index.ts`,
     `module/**`, `src/generated/**`
   - Reads: plan 13.; research R5 in full; decisions 13 to 20; `packages/contracts/src/provider.ts`;
