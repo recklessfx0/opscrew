@@ -44,7 +44,7 @@ export const IONOS_ENV = { token: "IONOS_TOKEN" } as const;
 export const IONOS_API_URL_ENV = "IONOS_API_URL";
 
 /** How to make the token and where it goes. */
-export const IONOS_CREDENTIALS_HINT = `In IONOS's Data Center Designer, open the Token Manager (${IONOS_TOKEN_MANAGER_URL}) and generate a token, best as a sub-user whose group has only the "Create Data Center" privilege, then set ${IONOS_ENV.token} to it.`;
+export const IONOS_CREDENTIALS_HINT = `In IONOS's Data Center Designer, open the Token Manager (${IONOS_TOKEN_MANAGER_URL}) and generate a token, best as a sub-user whose group has only the "Create Data Center", "Create Snapshot" and "Reserve IP" privileges, then set ${IONOS_ENV.token} to it.`;
 
 /**
  * The token from `env`, registered with `redactor` as soon as it is read, and the API's base

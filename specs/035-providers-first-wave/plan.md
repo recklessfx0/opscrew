@@ -513,7 +513,8 @@ the data centre, the server, its disk, its NIC and the NIC's firewall rules (R5 
     it and what may outlive it.
 - **`module/` (`ionos-instance`)**, one per server (decision 13):
   - `ionoscloud_datacenter` named `opscrew-${var.name}` in `var.location`;
-  - `ionoscloud_lan` with `public = true`;
+  - `ionoscloud_lan` with `public = true`, and `ionoscloud_ipblock` (size 1) whose address the NIC
+    takes (decision 21);
   - `data "ionoscloud_image"` for Ubuntu 24.04 in that location, with cloud-init;
   - `ionoscloud_server` (`type = "VCPU"`, the size's cores and RAM, a label with the app), its boot
     volume (Essential, the size's disk, `user_data` = the cloud-config, base64-encoded if the
@@ -632,6 +633,11 @@ the data centre, the server, its disk, its NIC and the NIC's firewall rules (R5 
     id too, which is a follow-up.
 20. **No resize.** IONOS scales cores and memory up live, but down needs a reboot and a disk only
     grows (R5 §10); the first cut refuses a size change and says a move is the way.
+21. **A reserved IPv4 address per server** (`ionoscloud_ipblock`, size 1, in the server's module),
+    5 EUR per 30 days, in each size's price. IONOS gives a stopped server's dynamic address back to
+    its pool and a start takes a new one (the Cloud API's stop and start pages, found by T3541), so
+    a stop, by OpsCrew or in IONOS's console, would leave the app's DNS on an old address. A
+    reserved address keeps it, with no special case for IONOS anywhere else.
 
 ## Order
 

@@ -33,6 +33,11 @@ export interface IonosRates {
   ramGbHour: number;
   /** One GB of Essential block storage, per 30 days. */
   essentialDiskGbPer30Days: number;
+  /**
+   * One reserved public IPv4 address, per 30 days. Each server keeps one, because IONOS gives a
+   * stopped server's dynamic address back to its pool (decision 21).
+   */
+  reservedIpv4Per30Days: number;
   /** One GB of snapshot, per 30 days. */
   snapshotGbPer30Days: number;
   /** Each GB of outgoing traffic above the contract's monthly allowance (the 2 to 10 TB tier). */
@@ -44,6 +49,7 @@ export const STATIC_RATES: IonosRates = {
   vcpuHour: 0.012,
   ramGbHour: 0.002,
   essentialDiskGbPer30Days: 0.04,
+  reservedIpv4Per30Days: 5,
   snapshotGbPer30Days: 0.04,
   trafficPerGbOver: 0.03,
 };
@@ -51,7 +57,7 @@ export const STATIC_RATES: IonosRates = {
 /** Outgoing traffic included each month, GB, per contract (not per server). */
 export const TRAFFIC_INCLUDED_GB_A_MONTH = 2000;
 
-/** One size OpsCrew offers: a vCPU server with one Essential boot disk. */
+/** One size OpsCrew offers: a vCPU server with one Essential boot disk and its reserved IPv4. */
 export interface IonosSize {
   /** OpsCrew's id, `vcpu-<vCPUs>-<GB of memory>`. */
   id: string;
@@ -70,11 +76,15 @@ export const STATIC_SIZES: readonly IonosSize[] = [
   { id: "vcpu-4-16", vcpus: 4, memoryGb: 16, diskGb: 160 },
 ];
 
-/** A size's price for one hour, EUR: its vCPUs, its memory, and its disk's 30-day price over 720 hours. */
+/**
+ * A size's price for one hour, EUR: its vCPUs, its memory, and the 30-day prices of its disk and
+ * its reserved IPv4 address over 720 hours.
+ */
 export function hourlyPrice(size: IonosSize): number {
   return (
     size.vcpus * STATIC_RATES.vcpuHour +
     size.memoryGb * STATIC_RATES.ramGbHour +
-    (size.diskGb * STATIC_RATES.essentialDiskGbPer30Days) / HOURS_PER_30_DAYS
+    (size.diskGb * STATIC_RATES.essentialDiskGbPer30Days) / HOURS_PER_30_DAYS +
+    STATIC_RATES.reservedIpv4Per30Days / HOURS_PER_30_DAYS
   );
 }

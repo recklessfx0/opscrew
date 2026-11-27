@@ -49,8 +49,8 @@ export class IonosCatalog implements ComputeCatalog {
   }
 
   /**
-   * The snapshot rate, by the hour and over 730 hours. No `ipv4Monthly`: a server's first
-   * dynamic IPv4 is free. The contract's 2 TB of traffic and the rate above it have no field here;
+   * The snapshot rate, by the hour and over 730 hours. No `ipv4Monthly`: each size's price already
+   * holds its server's one reserved IPv4 address (decision 21), and OpsCrew adds no other. The contract's 2 TB of traffic and the rate above it have no field here;
    * they are in `static-prices.ts` for the texts.
    * @throws OpsCrewError `INVALID_INPUT` for a location OpsCrew doesn't map.
    */

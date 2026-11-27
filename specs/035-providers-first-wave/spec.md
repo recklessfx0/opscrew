@@ -313,6 +313,7 @@ a business account and the founder's go-ahead, proves the same on one `vcpu-2-4`
    - the hourly price and the monthly figure for 730 hours, in euros before VAT, the server's
      cores, memory and disk counted as IONOS bills them;
    - the price list's version and date;
+   - the server's reserved IPv4 address (5 EUR per 30 days), which keeps its address through a stop;
    - no setup fee, billing by the minute, and that only a delete ends the cost: a server stopped
      from its own system bills in full, and one stopped from IONOS's console still bills its disk;
    - that an account billed by IONOS CLOUD Inc. pays in US dollars, at prices that differ;
@@ -321,7 +322,8 @@ a business account and the founder's go-ahead, proves the same on one `vcpu-2-4`
    creates on the user's account, for each server:
    - a **data centre of its own** (`opscrew-<server>`), in the location design chose, which IONOS
      doesn't bill by itself;
-   - a public LAN, and the server on it (a vCPU server, Ubuntu 24.04, an Essential disk), named
+   - a public LAN, a reserved IPv4 address, and the server on it (a vCPU server, Ubuntu 24.04, an
+     Essential disk) with that address, named
      `<app>` or `<app>-<name>` and labelled with the app;
    - its SSH key, which IONOS places at creation (it has no key resource);
    - the shared first-boot setup as the disk's **user data** (cloud-init);

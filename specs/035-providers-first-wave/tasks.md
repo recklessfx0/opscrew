@@ -729,7 +729,7 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && npx vitest run --root packages/providers/ionos && pnpm lint`
   - Effort: medium
 
-- [ ] T3541 [P] [US10] [US11] [US12] The server API and the connector
+- [x] T3541 [P] [US10] [US11] [US12] The server API and the connector (built 2026-11-27)
   - Owns: `packages/providers/ionos/src/servers.ts`, `servers.test.ts`, `connector.ts`,
     `connector.test.ts`, their fixtures
   - Reads: plan 13.; research R5 §5, §8 and §10; `ServerSnapshotApi` and `VpsConnector` in
@@ -761,7 +761,8 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Accept:
     - `definition` as plan 13., validated by `validateCloudProvider` in the test, with the regions
       and notes of decision 15 and the texts in plain English.
-    - The module `ionos-instance`: the data centre `opscrew-${var.name}`, the public LAN, the image
+    - The module `ionos-instance`: the data centre `opscrew-${var.name}`, the public LAN, a reserved
+      IPv4 (`ionoscloud_ipblock`, size 1, decision 21) the NIC takes as its address, the image
       by data source, the VCPU server with its label, its Essential boot volume (the size's disk,
       the cloud-config as `user_data` encoded as the provider needs, read from its source), its
       `ssh_keys`, its NIC with `firewall_active = true`, and one `ionoscloud_firewall` per IPv4

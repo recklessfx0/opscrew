@@ -23,13 +23,16 @@ const SIZES: [string, number, number, number][] = [
   ["vcpu-4-16", 4, 16, 160],
 ];
 
-/** The 730-hour figures, EUR, worked out by hand from the list v2026-10-29. */
+/**
+ * The 730-hour figures, EUR, worked out by hand from the list v2026-10-29, with the server's
+ * reserved IPv4 address (5 EUR per 30 days, decision 21).
+ */
 const MONTHLY: [string, number][] = [
-  ["vcpu-1-2", 13.3022],
-  ["vcpu-2-4", 26.6044],
-  ["vcpu-4-8", 53.2089],
-  ["vcpu-2-8", 32.4444],
-  ["vcpu-4-16", 64.8889],
+  ["vcpu-1-2", 18.3717],
+  ["vcpu-2-4", 31.6739],
+  ["vcpu-4-8", 58.2783],
+  ["vcpu-2-8", 37.5139],
+  ["vcpu-4-16", 69.9583],
 ];
 
 describe("IonosCatalog offers", () => {
@@ -60,10 +63,11 @@ describe("IonosCatalog offers", () => {
     }
   });
 
-  it("prices each size from its parts: vCPU, RAM, and the disk's 30-day price over 720 hours", async () => {
+  it("prices each size from its parts: vCPU, RAM, and the disk's and the reserved IPv4's 30-day prices over 720 hours", async () => {
     const offers = await new IonosCatalog().listOffers();
     for (const offer of offers) {
-      const hourly = offer.vcpus * 0.012 + offer.memoryGb * 0.002 + (offer.diskGb * 0.04) / 720;
+      const hourly =
+        offer.vcpus * 0.012 + offer.memoryGb * 0.002 + (offer.diskGb * 0.04) / 720 + 5 / 720;
       expect(offer.hourly?.amount).toBeCloseTo(hourly, 10);
       expect(offer.monthly.amount).toBeCloseTo(hourly * 730, 10);
     }
@@ -81,6 +85,7 @@ describe("IonosCatalog offers", () => {
       vcpuHour: 0.012,
       ramGbHour: 0.002,
       essentialDiskGbPer30Days: 0.04,
+      reservedIpv4Per30Days: 5,
       snapshotGbPer30Days: 0.04,
       trafficPerGbOver: 0.03,
     });
