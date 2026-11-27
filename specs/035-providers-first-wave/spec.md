@@ -2,14 +2,14 @@
 
 **Feature Branch**: `035-providers-first-wave` (feature directory `specs/035-providers-first-wave`)
 **Created**: 2026-11-21
-**Status**: OVHcloud built on `035-providers-first-wave`, its pull request open for review. Kamatera
-specified 2026-11-24 on `035-kamatera`. IONOS Cloud and UpCloud are later phases of this feature.
+**Status**: OVHcloud merged. Kamatera built on `035-kamatera` (pull request #55, approved).
+IONOS Cloud specified 2026-11-27 on `035-ionos`. UpCloud is the later phase of this feature.
 **Input**: The roadmap's "035 More server providers, first wave" (the founder's order of
 2026-11-20: OVHcloud first, then Kamatera, IONOS Cloud and UpCloud). Each provider is a package on
 the cloud provider contract (ADR 0029), built in as Contabo is, and ships complete in its own pull
 request before the next one starts. Research: [research.md](research.md). R1 has OVHcloud's facts,
-R2 the lead's decisions for it, R3 what only its live pass can check, and R4 Kamatera's facts,
-including the two findings that await a decision in issue #13.
+R2 the lead's decisions for it, R3 what only its live pass can check, R4 Kamatera's facts
+(issue #13 settled them), and R5 IONOS Cloud's.
 
 ## Why
 
@@ -292,9 +292,97 @@ what stops and what may keep billing.
 
 ---
 
-### User Story 10 - IONOS Cloud (Priority: later phase, not built now)
+### User Story 10 - Deploy an app to an IONOS Cloud server (Priority: P1)
 
-IONOS Cloud follows Kamatera. Its research, stories and requirements are added to this folder then.
+**Why this priority**: this is IONOS Cloud's point: a German provider with data centres in
+Germany, the UK, France, Spain and the US, billed by the minute, whose Terraform provider is the
+vendor's own and covers the server, its disk and its firewall.
+
+**Independent Test**: against fakes of IONOS's Cloud API and the engine, interview, design,
+provision, deploy, verify, status, secure and drift run on an IONOS app. The live pass, which needs
+a business account and the founder's go-ahead, proves the same on one `vcpu-2-4`.
+
+**Acceptance Scenarios**:
+
+1. **Given** `IONOS_TOKEN` in the environment (and `IONOS_API_URL` only to override the endpoint),
+   **When** the user runs `opscrew interview`, **Then** OpsCrew offers IONOS Cloud next to the other
+   cloud providers, with the regions and locations it serves. When only IONOS's token is set, it
+   chooses IONOS Cloud without asking. A user name and password are never read.
+2. **When** the user runs `opscrew design`, **Then** the options show IONOS's vCPU server sizes,
+   from a dated table of IONOS's EUR price list, each with:
+   - the hourly price and the monthly figure for 730 hours, in euros before VAT, the server's
+     cores, memory and disk counted as IONOS bills them;
+   - the price list's version and date;
+   - no setup fee, billing by the minute, and that only a delete ends the cost: a server stopped
+     from its own system bills in full, and one stopped from IONOS's console still bills its disk;
+   - that an account billed by IONOS CLOUD Inc. pays in US dollars, at prices that differ;
+   - no provider backups (OpsCrew's own snapshots cover the data).
+3. **When** the user runs `opscrew provision` and approves the plan by its hash, **Then** OpsCrew
+   creates on the user's account, for each server:
+   - a **data centre of its own** (`opscrew-<server>`), in the location design chose, which IONOS
+     doesn't bill by itself;
+   - a public LAN, and the server on it (a vCPU server, Ubuntu 24.04, an Essential disk), named
+     `<app>` or `<app>-<name>` and labelled with the app;
+   - its SSH key, which IONOS places at creation (it has no key resource);
+   - the shared first-boot setup as the disk's **user data** (cloud-init);
+   - the **NIC firewall**, active, with one rule per allowed network and port: SSH from the allowed
+     networks, the web ports on a server that serves the web, WireGuard where it is used.
+
+   The deploy, verify, status, secure and drift commands then work as on the other providers.
+4. **Given** a plan IONOS refuses (a contract limit on cores, memory, disk or public addresses, or a
+   missing privilege), **When** the plan is applied, **Then** provision stops with IONOS's answer
+   and what to do, and the half-made data centre is named, never left unsaid.
+5. **Given** values that are missing or wrong, **Then** `opscrew init` and provision name what is
+   missing and link IONOS's token page. They say a token acts as the user who made it, recommend a
+   sub-user in a group with only the "Create Data Center" privilege, and a token of at most 90 days.
+
+---
+
+### User Story 11 - Remove an app from IONOS Cloud honestly (Priority: P1)
+
+**Acceptance Scenarios**:
+
+1. **Given** an app on IONOS Cloud, **When** the user runs `opscrew destroy`, **Then** the plan says:
+   - each server's **data centre is deleted**, which takes the server, its disk, its LAN and its
+     firewall with it, and that only the delete ends the cost;
+   - whole-server snapshots may outlive it and keep billing per GB a month; each is named, and
+     OpsCrew deletes none of them;
+   - OpsCrew removes the app's DNS records.
+2. **Then** OpsCrew's own data snapshot is offered first, and the approval and the typed
+   confirmation of the server's name come before anything is deleted, as on every provider.
+
+---
+
+### User Story 12 - Everything around a server, on IONOS Cloud (Priority: P2)
+
+**Acceptance Scenarios**:
+
+1. **Whole-server snapshots** (`opscrew snapshot --server`, `restore --server`) work through IONOS's
+   Cloud API (a snapshot of the server's disk), because its Terraform provider has no snapshot
+   resource, priced per GB a month.
+2. **Moves**, **several servers**, **previews**, **monitoring**, **logs**, **rollback** and **data
+   snapshots** work on IONOS servers as on the others. A size change is refused with the reason and
+   the way to do it (a move), as on OVHcloud and Kamatera.
+3. **`opscrew advise`** and **`opscrew rotate`** include IONOS Cloud (its price list's date; how to
+   replace the token).
+4. **No provider backups, no delete protection, no resize:** each is said plainly where it matters.
+
+---
+
+### User Story 13 - IONOS Cloud in the guide, and its live pass (Priority: P3)
+
+**Acceptance Scenarios**:
+
+1. **Given** the guide, **Then** a page for IONOS Cloud says:
+   - that IONOS Cloud sells to businesses only;
+   - how to make the sub-user, its group and its token, and why;
+   - which locations OpsCrew offers, what each OpsCrew region maps to, and that Asia and the
+     Nordics have none (the nearest is used and the delay is shown);
+   - how billing works, in EUR or USD by the contracting entity, and what keeps billing;
+   - what isn't offered: provider backups, resizing, delete protection, Cubes and Dedicated Core.
+2. **Given** `docs/e2e.md`, **Then** IONOS's live pass has its steps, its variables and its cost.
+3. **Then** the MCP tools accept `ionos` wherever they accept a cloud provider, and the deploy and
+   snapshot skills say what differs on IONOS Cloud.
 
 ### User Story 11 - UpCloud (Priority: later phase, not built now)
 
@@ -353,6 +441,18 @@ UpCloud follows IONOS Cloud, in the same way.
 - **The console firewall is off by default**: the plan never claims a cloud firewall for
   Kamatera. The guide shows how to turn the console one on as a second layer, and that OpsCrew
   doesn't manage or verify it.
+
+- **IONOS has no location in Asia, Oceania or the Nordics**: `ap-southeast` maps to Frankfurt
+  (`de/fra/1`) and `eu-north` to Berlin (`de/txl`), each with a note design shows, and the delay
+  estimate shows the distance. `us-west` maps to Lenexa (`us/mci`), because Las Vegas has no vCPU
+  servers.
+- **A half-made data centre**: IONOS's Terraform provider doesn't roll back, so a failed apply can
+  leave a data centre with or without its server. The next provision plans from the state, and
+  destroy deletes the data centre whatever is in it.
+- **A contract limit** (cores, memory, disk, dynamic public addresses): IONOS publishes no default
+  values; the error names the limit, and the guide says support raises it.
+- **A token that has expired**: IONOS tokens last at most 365 days. The 401 says so, and how to make
+  a new one.
 
 ## Requirements *(mandatory)*
 
@@ -468,6 +568,20 @@ UpCloud follows IONOS Cloud, in the same way.
   public calculator data).
 - **First-boot kind**: whether a provider's servers take the shared setup as cloud-init (every
   provider so far) or as a startup script (Kamatera), each rendering the same steps.
+- **FR-3526**: IONOS Cloud MUST be a built-in cloud server provider, `ionos`, in its own package
+  (`@opscrew/provider-ionos`) written for the contract (ADR 0029), added to the built-in list after
+  Kamatera, with no change to the contract.
+- **FR-3527**: The definition MUST offer vCPU servers on an Essential disk only, from a dated static
+  table of IONOS's EUR price list (v2026-10-29), at least 40 GB of disk each, and say that a US
+  contract bills in USD.
+- **FR-3528**: Each server MUST live in a data centre of its own, made and deleted with it by its
+  module, so that a destroy deletes everything the server used and nothing else.
+- **FR-3529**: Each server's NIC firewall MUST be active, with one `ionoscloud_firewall` per allowed
+  network and port, and SecOps MUST check those rules as it checks a cloud firewall.
+- **FR-3530**: Only `IONOS_TOKEN` (and `IONOS_API_URL`) MUST be read; the agent's environment MUST
+  leave out every `IONOS_` variable, and the token MUST be registered with the redactor.
+- **FR-3531**: Snapshots of a server MUST go through IONOS's Cloud API, polling each request to its
+  end, and outlive the server in what OpsCrew says until the live pass shows otherwise.
 
 ## Success Criteria *(mandatory)*
 
@@ -506,6 +620,12 @@ UpCloud follows IONOS Cloud, in the same way.
   which test failed and why.
 - **SC-3513**: The founder can run Kamatera's live pass from `docs/e2e.md` alone. It costs about
   $0.03 an hour on one `A-2-4` and nothing after its destroy except what it names.
+- **SC-3514**: With fakes of IONOS's API and the engine, interview, design, provision, verify,
+  status, secure and destroy run on an IONOS app, and the generated files of the other five
+  providers are byte-identical.
+- **SC-3515**: No output, log, audit entry or generated file of the fake runs holds the token.
+- **SC-3516**: `pnpm check` passes on IONOS's pull request, or the pull request says plainly which
+  test failed and why.
 
 ## Assumptions
 
@@ -542,9 +662,18 @@ UpCloud follows IONOS Cloud, in the same way.
   - the error texts for no capacity and for the account's limits;
   - whether a terminate removes disks, snapshots and backups;
   - the powered-off rate, IPv6, and whether the console firewall has an API route.
+- IONOS Cloud's prices are euros, before VAT, from its price list v2026-10-29. A contract with IONOS
+  CLOUD Inc. pays in US dollars; the estimate stays in euros and says so.
+- Only IONOS's vCPU servers are offered. Cubes (fixed templates, no resize, no disk snapshot) and
+  Dedicated Core (dearer) are not offered now.
+- IONOS Cloud's live pass needs a business account and the founder's go-ahead. Until then these
+  facts wait for it (research R5): the Ubuntu 24.04 image alias and its login user; whether the
+  provider base64-encodes `user_data`; whether a new NIC's firewall is off by default; the contract
+  limits' default values; whether snapshots outlive their data centre; the seconds to ready.
 - Not in scope:
   - OVHcloud's object storage, automated backups, private networks (vRack), load balancers and
     local zones;
   - monthly billing, resizing and delete protection, for both providers;
   - Kamatera's private networks, Kubernetes and its console firewall automation;
-  - IONOS Cloud and UpCloud, which are this feature's later phases.
+  - IONOS Cloud's Cubes, Dedicated Core, security groups, backups and private LANs;
+  - UpCloud, which is this feature's later phase.

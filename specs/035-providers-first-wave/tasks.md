@@ -2,11 +2,11 @@
 description: "Tasks for 035-providers-first-wave"
 ---
 
-# Tasks: More server providers, first wave (OVHcloud, then Kamatera)
+# Tasks: More server providers, first wave (OVHcloud, Kamatera, IONOS Cloud)
 
-**Status**: OVHcloud built on `035-providers-first-wave`, its pull request open for review.
-Kamatera specified 2026-11-24 on `035-kamatera`, stacked on OVHcloud's branch; its tasks are T3519
-to T3533. IONOS Cloud and UpCloud follow, each with its own tasks added here when its work starts.
+**Status**: OVHcloud merged. Kamatera built on `035-kamatera` (T3519 to T3537, pull request #55).
+IONOS Cloud specified 2026-11-27 on `035-ionos`, stacked on Kamatera's branch; its tasks are T3538
+to T3547. UpCloud follows, with its own tasks added here when its work starts.
 
 **Input**: `specs/035-providers-first-wave/` (spec.md, plan.md, research.md); feature 026 (the
 contract, ADR 0029, and Contabo as the template).
@@ -675,3 +675,129 @@ dependencies or the lockfile. No real secret in any test: `fakeSecret(kind)` and
       already names servers (no new naming rule). A test: app `shop` with a sibling `shop-staging`
       and `shop-staging(1)` on the account finds neither, and its own `shop-<extra>` still.
   - Effort: high
+
+## Phase 7: IONOS Cloud
+
+IONOS Cloud is stacked on Kamatera's branch (`035-ionos`), plan 13. to 15. and decisions 13 to 20.
+No contract change; the id joins the shared lists through the issue below.
+
+- [ ] T3538 (lead; the lists' issue) The package's skeleton, and `ionos` in `ProviderId`
+  - Accept:
+    - `packages/providers/ionos` with `package.json` (`@opscrew/provider-ionos`, the same
+      dependencies, scripts and `exports` as `@opscrew/provider-kamatera`), `tsconfig.json`,
+      `vitest.config.ts`, an empty `module/`, `src/index.ts` exporting nothing yet, and the lockfile.
+    - `ionos` in `ProviderId` and `VpsProviderId`, so the catalogue and the server API typecheck.
+    - `pnpm check` is as green as before.
+  - Effort: lead
+
+- [ ] T3539 [P] [US10] IONOS's Cloud API client
+  - Owns: `packages/providers/ionos/src/client.ts`, `client.test.ts`, `src/__fixtures__/client*`
+  - Reads: plan 13.; research R5 §1 and §10; decision 14; Kamatera's and OVHcloud's `client.ts`
+  - Depends: T3538
+  - Accept:
+    - `IONOS_ENV` names `IONOS_TOKEN`, and `IONOS_API_URL` overrides the base only. Reading the token
+      registers it with the redactor, and a missing one is named before any call. `IONOS_USERNAME`
+      and `IONOS_PASSWORD` are never read.
+    - Every call carries `Authorization: Bearer`; every answer is parsed with a zod schema the
+      caller passes.
+    - A 202 is awaited through its request's status (`Location`, then `GET /requests/{id}/status`)
+      with the clock and sleep injected, a timeout with a plain message, and the request's
+      `message` on `FAILED`.
+    - Errors from the body's `messages[]`: 401 (wrong or expired token, how to make one), 403 (the
+      missing privilege), 404, 422 and a contract limit (named, and that support raises it), 429
+      (reads wait, at most 60 seconds); no `post` is retried.
+    - Each route's source (docs.ionos.com's Cloud API v6 pages) is listed in the report.
+    - Tests with `fetch` fakes cover each rule, and a leak check shows the token in no error, log
+      or fixture.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && npx vitest run --root packages/providers/ionos && pnpm lint`
+  - Effort: high
+
+- [ ] T3540 [P] [US10] [US12] The catalogue and the price table
+  - Owns: `packages/providers/ionos/src/catalog.ts`, `catalog.test.ts`, `static-prices.ts`
+  - Reads: plan 13.; research R5 §3, §5 and §7; decision 16; Kamatera's catalogue
+  - Depends: T3538
+  - Accept:
+    - The five sizes of plan 13. in every mapped location, from the EUR list v2026-10-29, the
+      hourly price from its parts (vCPU, RAM, the disk at its 30-day price over 720 hours), the
+      730-hour figure, `billing: "hourly"`, no `setupFee`, `source: "static"`, the list's date.
+    - `extras(location)`: the snapshot rate, and 2 TB of traffic a month per contract with the
+      rate above it.
+    - A test recomputes each size's price from the components.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && npx vitest run --root packages/providers/ionos && pnpm lint`
+  - Effort: medium
+
+- [ ] T3541 [P] [US10] [US11] [US12] The server API and the connector
+  - Owns: `packages/providers/ionos/src/servers.ts`, `servers.test.ts`, `connector.ts`,
+    `connector.test.ts`, their fixtures
+  - Reads: plan 13.; research R5 §5, §8 and §10; `ServerSnapshotApi` and `VpsConnector` in
+    `packages/contracts/src/connector.ts` (with `findAppServers(app, names?)`, #56); Kamatera's
+    `servers.ts` and `connector.ts`; docs.ionos.com's Cloud API v6 pages for data centres, servers,
+    volumes and snapshots
+  - Depends: T3539
+  - Accept:
+    - `findAppServers(app, names?)`: the data centres named `opscrew-<name>` for exactly `names`
+      (without them, `opscrew-<app>` and `opscrew-<app>-…`), then their servers; an `AppServer`'s id
+      is `<datacenter id>/<server id>`. A sibling app's `opscrew-shop-staging` is never `shop`'s
+      when `names` is given.
+    - Snapshots of the boot disk: created (named `opscrew-<app>-<server>-<time>`), listed by that
+      prefix oldest first, restored and deleted, each awaited.
+    - Power: `powerOn`, `powerOff` (IONOS's stop, never an OS shutdown) and `restart`, awaited.
+    - The connector: `configured`, `catalog()`, `servers` (undefined without the token), and
+      `verifyCredentials`, which reads the data centres and the contract's limits and says what it
+      found. No `firewalls`, `backups` or `objectStorage`.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && npx vitest run --root packages/providers/ionos && pnpm lint`
+  - Effort: xhigh
+
+- [ ] T3542 [US10] [US11] [US12] The definition, the module and SecOps's reading of its firewall
+  - Owns: `packages/providers/ionos/src/definition.ts`, `definition.test.ts`, `src/index.ts`,
+    `module/**`, `src/generated/**`
+  - Reads: plan 13.; research R5 in full; decisions 13 to 20; `packages/contracts/src/provider.ts`;
+    OVHcloud's and Kamatera's `definition.ts` and `module/`; `scripts/gen-provider-modules.ts`;
+    `ionos-cloud/ionoscloud` 6.7.42's docs and source (`user_data`'s encoding, the firewall rule)
+  - Depends: T3538, T3540, T3541
+  - Accept:
+    - `definition` as plan 13., validated by `validateCloudProvider` in the test, with the regions
+      and notes of decision 15 and the texts in plain English.
+    - The module `ionos-instance`: the data centre `opscrew-${var.name}`, the public LAN, the image
+      by data source, the VCPU server with its label, its Essential boot volume (the size's disk,
+      the cloud-config as `user_data` encoded as the provider needs, read from its source), its
+      `ssh_keys`, its NIC with `firewall_active = true`, and one `ionoscloud_firewall` per IPv4
+      network and port by `for_each`; no IPv6 rule; `lifecycle.ignore_changes` on what IONOS can't
+      change; the usual outputs.
+    - `locals.sizes` maps each size id to its cores, RAM and disk, and a test keeps it equal to the
+      offers.
+    - SecOps's `rules` and `attached` read the planned `ionoscloud_firewall` resources and the
+      NIC's `firewall_active`; the plan JSON fixture passes, and fails with the firewall off or SSH
+      open to everyone.
+    - The module validates and passes `fmt -check` under `tofu`, skipping plainly without the
+      network; `src/generated/module.ts` is regenerated.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && OPSCREW_IT=1 npx vitest run --root packages/providers/ionos && pnpm lint`
+  - Effort: xhigh
+
+- [ ] T3543 (lead; the lists' issue) `ionos` joins the lists and the registry
+  - Accept: as T3527, for `ionos` after `kamatera`, with `IONOS_TOKEN` in the plugin's credential
+    lists, and `IONOS_` among the prefixes the agent's environment never gets (with its test).
+  - Effort: lead
+
+- [ ] T3544 [P] [US13] The guide, the plugin and the MCP tools
+  - Owns: `docs/guide/ionos.md`, IONOS's lines on the guide pages that list providers, the plugin's
+    deploy and snapshot skills
+  - Reads: plan 15.; spec US13; `docs/guide/kamatera.md`
+  - Depends: T3542
+  - Accept: spec US13 1. and 3.
+  - Effort: medium
+
+- [ ] T3545 [P] [US13] The live test and its steps
+  - Owns: `packages/cli/test/live/ionos.test.ts`, IONOS's section of `docs/e2e.md`
+  - Reads: `packages/cli/test/live/kamatera.test.ts`; plan 15.
+  - Depends: T3542
+  - Accept: the flow on one `vcpu-2-4` (about €0.04 an hour), the leak scan for the token, and the
+    check after the destroy that no data centre `opscrew-<app>…` is left; never run in this task.
+  - Verify: `pnpm turbo run typecheck --filter=opscrew && pnpm lint`
+  - Effort: medium
+
+- [ ] T3546 (lead) A fresh review of IONOS's branch, `pnpm check`, research R5 updated with the
+  implementers' findings, then its pull request, stacked on Kamatera's
+
+- [ ] T3547 (lead) The live pass, only with the founder's go-ahead (it costs money, and IONOS
+  Cloud sells to businesses only)

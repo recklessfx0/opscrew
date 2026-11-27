@@ -1,9 +1,10 @@
-# Implementation Plan: More server providers, first wave (OVHcloud, then Kamatera)
+# Implementation Plan: More server providers, first wave (OVHcloud, Kamatera, IONOS Cloud)
 
-**Branch**: `035-providers-first-wave` for OVHcloud, `035-kamatera` for Kamatera (stacked on it) |
-**Date**: 2026-11-21 for OVHcloud, 2026-11-24 for Kamatera | **Spec**: [spec.md](spec.md)
+**Branch**: `035-providers-first-wave` for OVHcloud, `035-kamatera` for Kamatera (stacked on it),
+`035-ionos` for IONOS Cloud (stacked on Kamatera's) | **Date**: 2026-11-21 for OVHcloud, 2026-11-24
+for Kamatera, 2026-11-27 for IONOS Cloud | **Spec**: [spec.md](spec.md)
 **Input**: [spec.md](spec.md), [research.md](research.md) (R1 OVHcloud's facts, R2 the lead's
-decisions, R3 the live checks, R4 Kamatera's facts).
+decisions, R3 the live checks, R4 Kamatera's facts, R5 IONOS Cloud's).
 
 ## Summary
 
@@ -458,6 +459,89 @@ stay on the user's computer.
 - **The flows:** SC-3508's one flow test in agents on a Kamatera app, and SC-3509's two cases
   (a timed-out create; a `<name>(1)` rename).
 
+### 13. The IONOS Cloud package (`packages/providers/ionos`, `@opscrew/provider-ionos`)
+
+IONOS Cloud is the sixth, `ionos`, stacked on Kamatera's branch. It needs **no contract change**:
+its Terraform provider is the vendor's (`ionos-cloud/ionoscloud`, pinned `~> 6.7.42`) and covers
+the data centre, the server, its disk, its NIC and the NIC's firewall rules (R5 §2).
+
+- **`client.ts`**:
+  - **Front:** `https://api.ionos.com/cloudapi/v6` (`IONOS_API_URL` overrides it). Every call
+    carries `Authorization: Bearer` with `IONOS_TOKEN`, registered with the redactor. A user name
+    and password are never read (decision 14).
+  - **Requests:** a create, change or delete answers 202 with the request's address in `Location`;
+    the client polls `GET /requests/{id}/status` with an injected clock and sleep until `DONE`, and
+    fails with the request's `message` on `FAILED`.
+  - **Errors:** the body is `{ httpStatus, messages: [{ errorCode, message }] }` (R5 §10); a 401 says
+    the token is wrong or expired and how to make one; a 403 names the missing privilege; a 422 or
+    a limit names it and says support raises it; a 429 waits on reads only; no `post` is retried.
+- **`static-prices.ts`**: the EUR price list v2026-10-29 (R5 §7): vCPU 0.012 an hour, RAM 0.002 a GB
+  an hour, Essential disk 0.04 a GB per 30 days, snapshot 0.04 a GB per 30 days, 2 TB of traffic a
+  month per contract then 0.030 a GB. The sizes (decision 16), each with its hourly price and the
+  730-hour figure, the disk counted at 730/720 of its 30-day price:
+  - `vcpu-1-2` (1 vCPU, 2 GB, 40 GB), `vcpu-2-4` (2, 4 GB, 80 GB), `vcpu-4-8` (4, 8 GB, 160 GB),
+    `vcpu-2-8` (2, 8 GB, 80 GB), `vcpu-4-16` (4, 16 GB, 160 GB).
+- **`catalog.ts`**: the table, every size in every mapped location, `source: "static"` and the date.
+  IONOS has no public price API (R5 §7), so there is no live read. `extras(location)`: the snapshot
+  rate and the traffic allowance.
+- **`servers.ts`** (`ServerSnapshotApi`):
+  - **`findAppServers(app, names?)`:** `GET /datacenters?depth=1`, the data centres named
+    `opscrew-<name>` for each of `names` (or, without them, `opscrew-<app>` and `opscrew-<app>-…`),
+    then each one's servers. An `AppServer`'s id is `<datacenter id>/<server id>`.
+  - **Snapshots:** of the server's boot disk, `POST /datacenters/{dc}/volumes/{vol}/create-snapshot`
+    named `opscrew-<app>-<server>-<time>`, awaited; listed from `GET /snapshots` by that prefix,
+    oldest first; deleted and restored (`restore-snapshot`) the same way.
+  - **Power:** `start`, `stop` and `reboot`, each awaited; `stop` is IONOS's, which frees the cores
+    and memory (an OS shutdown frees nothing, R5 §3).
+  - The data centre's delete is Terraform's, so the connector's `remove` is not used.
+- **`connector.ts`**: `configured`, `catalog()`, `servers`, and `verifyCredentials`, which reads
+  `GET /datacenters?depth=0` and `GET /contracts` and says the data-centre count and the contract's
+  limits it found. No `firewalls`, `backups` or `objectStorage`.
+- **`definition.ts`**:
+  - `currency: "EUR"`, `billing: { model: "hourly", counts: "second", setupFee: false }`;
+  - `providerBackups: false`, `backupPercent: 0`, `backupsOutliveServer: true`;
+  - `snapshots: { kind: "per-gb", … }` at 0.04 a GB, `serverSnapshotsOutliveServer: true`;
+  - `deleteProtection: false`, `resize: false`, `removal: { kind: "delete" }`;
+  - `firewallResourceType: "ionoscloud_firewall"`, with SecOps's `rules` and `attached` reading
+    the planned rules and the NIC's `firewall_active` (decision 17);
+  - `lifecycleIgnored` with the server's `image_name` and `ssh_keys` and the disk's `user_data`,
+    which IONOS can't change after creation;
+  - `tokenRules: []`, `envPrefixes: ["IONOS"]`;
+  - the regions of decision 15, with their notes;
+  - `unavailable` and `serverLimit` patterns from IONOS's words, unverified until the live pass;
+  - every text in plain English, and the destroy texts say the data centre goes with everything in
+    it and what may outlive it.
+- **`module/` (`ionos-instance`)**, one per server (decision 13):
+  - `ionoscloud_datacenter` named `opscrew-${var.name}` in `var.location`;
+  - `ionoscloud_lan` with `public = true`;
+  - `data "ionoscloud_image"` for Ubuntu 24.04 in that location, with cloud-init;
+  - `ionoscloud_server` (`type = "VCPU"`, the size's cores and RAM, a label with the app), its boot
+    volume (Essential, the size's disk, `user_data` = the cloud-config, base64-encoded if the
+    provider doesn't encode it, which the implementer reads in the provider's source), `ssh_keys`
+    with the deploy key, and its NIC on the LAN with `dhcp = true` and `firewall_active = true`;
+  - one `ionoscloud_firewall` per allowed IPv4 network and port (`for_each`), never an inline list
+    (R5 §2); the server has no IPv6, so IPv6 networks are left out of the rules;
+  - the outputs the other modules have; `server_id` is `<datacenter id>/<server id>`.
+
+### 14. IONOS's id joins the lists, and its variables never reach the agent (lead)
+
+`ionos` in `ProviderId`, `VpsProviderId`, `VpsProviderSchema`, `DEFAULT_IMAGES`, `CLOUD_PROVIDERS`
+(after `kamatera`), the plugin's credential lists and the lockfile, as for Kamatera.
+`packages/core/src/env.ts` gains `IONOS_` among the prefixes the agent never gets.
+
+### 15. The guide, the plugin, the live pass, and the tests (IONOS Cloud)
+
+- `docs/guide/ionos.md` on `kamatera.md`'s model: business-only sign-up, the sub-user and token, the
+  locations and the far mappings, EUR or USD, what keeps billing, what isn't offered.
+- The plugin's deploy and snapshot skills, the MCP tools, `docs/e2e.md` and
+  `packages/cli/test/live/ionos.test.ts` on one `vcpu-2-4` (about €0.04 an hour), never run without
+  the founder's go-ahead.
+- **Tests:** the client with `fetch` fakes (the bearer header, a request polled to `DONE` and to
+  `FAILED`, each error status in plain English, no `post` retried, a leak check); the catalogue; the
+  server API; the module (`tofu validate`, the firewall rules per network and port, no IPv6 rule);
+  SecOps on an IONOS plan JSON; the registry over six definitions; every other provider's files
+  byte-identical.
+
 ## Decisions (lead, 2026-11-21)
 
 1. **`rootVariables` is a contract field, not a plan.yaml field.** The project id belongs with the
@@ -519,8 +603,38 @@ stay on the user's computer.
 13. **No shared SSH-key resource:** Kamatera's servers take the deploy key's text, so
     `extraShared` declares nothing, which the registry accepts for that case only (issue #52).
 
+## Decisions for IONOS Cloud (the contributor, 2026-11-27)
+
+13. **One data centre per server**, made and deleted by the server's module (`opscrew-<server>`).
+    A data centre costs nothing by itself (R5 §8), the module stays whole, and a destroy of a server
+    deletes everything it used. A data centre shared by the app's servers would need root-level
+    resources that move the first server when a second is added. Servers of one app reach each
+    other over OpsCrew's WireGuard network, as across providers.
+14. **A token only.** IONOS's Basic sign-in is being retired and needs an account without 2FA, so
+    OpsCrew reads `IONOS_TOKEN` alone. The guide recommends a sub-user in a group with only "Create
+    Data Center", because a token has no scope of its own.
+15. **Every region maps** (the contract's map is complete): `eu-central` to `de/fra/1` (then
+    `de/fra/2`, `de/txl`), `eu-north` to `de/txl` (Berlin, noted as far), `us-east` to `us/ewr`,
+    `us-west` to `us/mci` (Lenexa, noted: Las Vegas has no vCPU servers), and `ap-southeast` to
+    `de/fra/1` (noted: IONOS has no location in Asia or Oceania). The delay estimate shows the
+    distance, so design ranks IONOS low there.
+16. **vCPU servers on an Essential disk only**, five sizes with at least 40 GB, since design sizes
+    every app at 40 GB or more. Cubes can't be resized or snapshotted as block storage, and
+    Dedicated Core is dearer; neither is offered now.
+17. **The NIC firewall, not a security group.** It is documented, its Terraform resource is read,
+    and an active firewall with no rule blocks everything (R5 §4), which fails closed. Security
+    groups' resource names are unverified.
+18. **EUR.** The contract holds one currency per provider; IONOS CLOUD GmbH's list is in EUR. A US
+    contract pays in USD, which design and the guide say; a currency per account is a later
+    contract change if users ask.
+19. **No takeover of a lost server, for now** (known limit, as on Kamatera). A lost create leaves a
+    data centre the state may not know; the takeover's import of a server needs its data centre's
+    id too, which is a follow-up.
+20. **No resize.** IONOS scales cores and memory up live, but down needs a reboot and a disk only
+    grows (R5 §10); the first cut refuses a size change and says a move is the way.
+
 ## Order
 
 `tasks.md` holds the order, the waves and each task's number. OVHcloud is T3501 to T3518, with
-T3515 waiting for the founder. Kamatera is T3519 to T3533, stacked on OVHcloud's branch and
-following it in the review queue.
+T3515 waiting for the founder. Kamatera is T3519 to T3537, stacked on OVHcloud's branch and
+following it in the review queue. IONOS Cloud is T3538 to T3547, stacked on Kamatera's.
