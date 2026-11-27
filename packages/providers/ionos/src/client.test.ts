@@ -115,16 +115,31 @@ describe("readIonosCredentials", () => {
     expect(read).toEqual({ token: TOKEN, apiUrl: "https://ionos.example.test/cloudapi/v6" });
   });
 
-  it.each(["http://api.ionos.com/cloudapi/v6", "api.ionos.com", "not a url"])(
-    "refuses IONOS_API_URL=%s, which would send the token unencrypted or nowhere",
-    (url) => {
-      const read = readIonosCredentials({ ...TOKEN_ENV, IONOS_API_URL: url }, new Redactor());
-      expect("token" in read).toBe(false);
-      expect("problem" in read && read.problem).toMatch(
-        /^IONOS_API_URL must be an https:\/\/ address\. /,
-      );
-    },
-  );
+  // As IONOS's Go SDK reads it (sdk-go `configuration.go` `getServerUrl`, `utils.go`
+  // `EnsureURLFormat`): `/cloudapi/v6` added when missing, `https://` when there is no scheme.
+  it.each([
+    ["api.ionos.com", "https://api.ionos.com/cloudapi/v6"],
+    ["api.ionos.com/", "https://api.ionos.com/cloudapi/v6"],
+    ["https://api.ionos.com", "https://api.ionos.com/cloudapi/v6"],
+    ["ionos.example.test/cloudapi/v6", "https://ionos.example.test/cloudapi/v6"],
+    ["https://ionos.example.test/proxy", "https://ionos.example.test/proxy/cloudapi/v6"],
+  ])("reads IONOS_API_URL=%s as the SDK does: %s", (value, apiUrl) => {
+    const read = readIonosCredentials({ ...TOKEN_ENV, IONOS_API_URL: value }, new Redactor());
+    expect(read).toEqual({ token: TOKEN, apiUrl });
+  });
+
+  it.each([
+    "http://api.ionos.com/cloudapi/v6",
+    "http://api.ionos.com",
+    "ftp://api.ionos.com",
+    "not a url",
+  ])("refuses IONOS_API_URL=%s, which would send the token unencrypted or nowhere", (url) => {
+    const read = readIonosCredentials({ ...TOKEN_ENV, IONOS_API_URL: url }, new Redactor());
+    expect("token" in read).toBe(false);
+    expect("problem" in read && read.problem).toMatch(
+      /^IONOS_API_URL must be an https:\/\/ address or a host name, such as api\.ionos\.com\. /,
+    );
+  });
 });
 
 describe("IonosClient requests", () => {

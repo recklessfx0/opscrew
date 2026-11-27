@@ -48,9 +48,10 @@ export const IONOS_CREDENTIALS_HINT = `In IONOS's Data Center Designer, open the
 
 /**
  * The token from `env`, registered with `redactor` as soon as it is read, and the API's base
- * (`IONOS_API_URL`, else {@link IONOS_API_URL}); or a plain-English `problem` naming
- * `IONOS_TOKEN` when it is missing (empty or blank), or a base that isn't `https://`. Without the
- * token nothing calls IONOS.
+ * (`IONOS_API_URL` as {@link ionosApiUrl} reads it, else {@link IONOS_API_URL}); or a
+ * plain-English `problem` naming `IONOS_TOKEN` when it is missing (empty or blank), or an
+ * `IONOS_API_URL` that isn't an https:// address or a host name. Without the token nothing calls
+ * IONOS.
  */
 export function readIonosCredentials(
   env: Record<string, string | undefined>,
@@ -63,15 +64,32 @@ export function readIonosCredentials(
     };
   }
   redactor.addLiteral(token, IONOS_ENV.token);
-  const base = env[IONOS_API_URL_ENV]?.trim() || IONOS_API_URL;
-  // The token travels in a header, so it goes to an https:// address only.
-  if (URL.parse(base)?.protocol !== "https:") {
+  const value = env[IONOS_API_URL_ENV]?.trim();
+  const apiUrl = value ? ionosApiUrl(value) : IONOS_API_URL;
+  if (apiUrl === undefined) {
     return {
-      problem: `${IONOS_API_URL_ENV} must be an https:// address. Unset it to use ${IONOS_API_URL}, or set it to an https:// address.`,
+      problem: `${IONOS_API_URL_ENV} must be an https:// address or a host name, such as api.ionos.com. Unset it to use ${IONOS_API_URL}, or set it to one.`,
     };
   }
-  return { token, apiUrl: base.replace(/\/+$/, "") };
+  return { token, apiUrl };
 }
+
+/**
+ * The API's base from an `IONOS_API_URL`, read as IONOS's Go SDK reads it, since the same variable
+ * sets the Terraform provider's endpoint (sdk-go `configuration.go` `getServerUrl`: `/cloudapi/v6`
+ * added when the value doesn't end with it; `utils.go` `EnsureURLFormat`: a trailing `/` dropped
+ * and `https://` added when there is no scheme). `undefined` for anything that isn't then an
+ * https:// URL: the token travels in a header, so it goes to an https:// address only.
+ */
+function ionosApiUrl(value: string): string | undefined {
+  let base = value.replace(/\/+$/, "");
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(base)) base = `https://${base}`;
+  if (!base.endsWith(BASE_PATH)) base = `${base}${BASE_PATH}`;
+  return URL.parse(base)?.protocol === "https:" ? base : undefined;
+}
+
+/** The Cloud API v6's path on its host (sdk-go `DefaultIonosBasePath`). */
+const BASE_PATH = "/cloudapi/v6";
 
 // --- Answer schemas (unknown fields are kept) -------------------------------------------------
 
