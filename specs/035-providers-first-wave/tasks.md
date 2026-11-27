@@ -779,7 +779,9 @@ No contract change; the id joins the shared lists through [#63](https://github.c
 
 - [ ] T3543 (lead; [#63](https://github.com/opscrew-hub/opscrew/issues/63)) `ionos` joins the lists and the registry
   - Accept: as T3527, for `ionos` after `kamatera`, with `IONOS_TOKEN` in the plugin's credential
-    lists, and `IONOS_` among the prefixes the agent's environment never gets (with its test).
+    lists (`plugin/.codex-plugin/plugin.json` `env_vars` and the TOML in
+    `docs/guide/mcp-clients.md`), and `IONOS_` among the prefixes the agent's environment never gets
+    (with its test). Approved on #63, 2026-11-27.
   - Effort: lead
 
 - [ ] T3544 [P] [US13] The guide, the plugin and the MCP tools
@@ -800,7 +802,8 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Effort: medium
 
 - [ ] T3546 (lead) A fresh review of IONOS's branch, `pnpm check`, research R5 updated with the
-  implementers' findings, then its pull request, stacked on Kamatera's
+  implementers' findings, then its pull request, stacked on Kamatera's (the lead on #63: target it onto
+  `035-kamatera`'s line, so `main` keeps 0.2.13's scope)
 
 - [ ] T3547 (lead) The live pass, only with the founder's go-ahead (it costs money, and IONOS
   Cloud sells to businesses only)
