@@ -691,7 +691,7 @@ No contract change; the id joins the shared lists through [#63](https://github.c
     - `pnpm check` is as green as before.
   - Effort: lead
 
-- [ ] T3539 [P] [US10] IONOS's Cloud API client
+- [x] T3539 [P] [US10] IONOS's Cloud API client (built 2026-11-27)
   - Owns: `packages/providers/ionos/src/client.ts`, `client.test.ts`, `src/__fixtures__/client*`
   - Reads: plan 13.; research R5 §1 and §10; decision 14; Kamatera's and OVHcloud's `client.ts`
   - Depends: T3538
