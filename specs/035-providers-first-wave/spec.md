@@ -336,7 +336,8 @@ a business account and the founder's go-ahead, proves the same on one `vcpu-2-4`
    and what to do, and the half-made data centre is named, never left unsaid.
 5. **Given** values that are missing or wrong, **Then** `opscrew init` and provision name what is
    missing and link IONOS's token page. They say a token acts as the user who made it, recommend a
-   sub-user in a group with only the "Create Data Center" privilege, and a token of at most 90 days.
+   sub-user in a group with only the "Create Data Center", "Create Snapshot" and "Reserve IP"
+   privileges, and a token of at most 90 days.
 
 ---
 

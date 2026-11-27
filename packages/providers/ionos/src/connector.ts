@@ -15,9 +15,9 @@ import { ionosServerApi } from "./servers";
 /** Credentials OpsCrew needs for IONOS Cloud: one token, which acts as the user who made it. */
 export const IONOS_CREDENTIALS: CredentialRequirement = {
   envVars: Object.values(IONOS_ENV),
-  description: `An IONOS Cloud token as ${IONOS_ENV.token}, made in the Token Manager of IONOS's Data Center Designer. A token can't be limited: it acts as the user who made it, so make it as a sub-user whose group has only the "Create Data Center" privilege, and "Create Snapshot" for whole-server snapshots.`,
+  description: `An IONOS Cloud token as ${IONOS_ENV.token}, made in the Token Manager of IONOS's Data Center Designer. A token can't be limited: it acts as the user who made it, so make it as a sub-user whose group has only the "Create Data Center", "Create Snapshot" and "Reserve IP" privileges: data centres for the servers, snapshots for whole-server snapshots, and one reserved IPv4 address per server.`,
   // The group privileges, as the Data Center Designer names them.
-  scopes: ["Create Data Center", "Create Snapshot"],
+  scopes: ["Create Data Center", "Create Snapshot", "Reserve IP"],
   createUrl: IONOS_TOKEN_MANAGER_URL,
 };
 

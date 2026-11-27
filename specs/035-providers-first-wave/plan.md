@@ -613,7 +613,8 @@ the data centre, the server, its disk, its NIC and the NIC's firewall rules (R5 
     other over OpsCrew's WireGuard network, as across providers.
 14. **A token only.** IONOS's Basic sign-in is being retired and needs an account without 2FA, so
     OpsCrew reads `IONOS_TOKEN` alone. The guide recommends a sub-user in a group with only "Create
-    Data Center", because a token has no scope of its own.
+    Data Center", "Create Snapshot" and "Reserve IP" (decision 21), because a token has no scope of
+    its own.
 15. **Every region maps** (the contract's map is complete): `eu-central` to `de/fra/1` (then
     `de/fra/2`, `de/txl`), `eu-north` to `de/txl` (Berlin, noted as far), `us-east` to `us/ewr`,
     `us-west` to `us/mci` (Lenexa, noted: Las Vegas has no vCPU servers), and `ap-southeast` to

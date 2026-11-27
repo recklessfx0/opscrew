@@ -103,6 +103,8 @@ steps you run:
   groups, SSH keys and snapshots in your Public Cloud project, and live prices.
 - **Kamatera** (cloudcli.cloudwm.com, and console.kamatera.com for its public price list): servers
   and snapshots, and live prices.
+- **IONOS Cloud** (api.ionos.com): data centres, servers, their firewall rules and reserved
+  addresses, and snapshots. Its prices come from a dated list, since it has no price API.
 - **Cloudflare:** DNS records, TLS settings, rules and Workers; DNS-over-HTTPS lookups
   (cloudflare-dns.com) when it checks a site.
 - **Porkbun, Namecheap and GoDaddy**, only in the `domain` steps: availability, prices, purchases

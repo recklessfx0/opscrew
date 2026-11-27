@@ -786,7 +786,7 @@ No contract change; the id joins the shared lists through [#63](https://github.c
     (with its test). Approved on #63, 2026-11-27.
   - Effort: lead
 
-- [ ] T3544 [P] [US13] The guide, the plugin and the MCP tools
+- [x] T3544 [P] [US13] The guide, the plugin and the MCP tools (built 2026-11-27)
   - Owns: `docs/guide/ionos.md`, IONOS's lines on the guide pages that list providers, the plugin's
     deploy and snapshot skills
   - Reads: plan 15.; spec US13; `docs/guide/kamatera.md`
