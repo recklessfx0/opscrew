@@ -134,7 +134,7 @@ describe("UpCloudCatalog extras", () => {
     expect(STATIC_RATES.backupGbMonth).toBe(0.056);
     expect(extras).toEqual({
       backupPercent: 20,
-      snapshotPerGbMonth: { amount: 0.056, currency: "EUR" },
+      snapshotPerGbMonth: { amount: (0.056 / 720) * 730, currency: "EUR" },
       snapshotPerGbHour: { amount: 0.056 / 720, currency: "EUR" },
       pricesIncludeVat: false,
       source: "static",

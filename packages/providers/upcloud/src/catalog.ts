@@ -2,6 +2,7 @@ import type { ComputeCatalog, ComputeOffer, Money, ProviderExtras } from "@opscr
 import { OpsCrewError, orText } from "@opscrew/core";
 import {
   BILLED_HOURS_A_MONTH,
+  HOURS_A_MONTH,
   HOURS_PER_30_DAYS,
   STATIC_PLANS,
   STATIC_PRICES_AS_OF,
@@ -76,7 +77,8 @@ export class UpCloudCatalog implements ComputeCatalog {
     }
     return {
       backupPercent: STATIC_RATES.weekPlanBackupPercent,
-      snapshotPerGbMonth: eur(STATIC_RATES.backupGbMonth),
+      // Billed by the hour over a 30-day month; the monthly figure is 730 hours, as elsewhere.
+      snapshotPerGbMonth: eur((STATIC_RATES.backupGbMonth / HOURS_PER_30_DAYS) * HOURS_A_MONTH),
       snapshotPerGbHour: eur(STATIC_RATES.backupGbMonth / HOURS_PER_30_DAYS),
       pricesIncludeVat: false,
       source: "static",

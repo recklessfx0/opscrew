@@ -15,6 +15,9 @@ export const STATIC_PRICES_AS_OF = "2026-10-24T00:00:00.000Z";
  */
 export const BILLED_HOURS_A_MONTH = 672;
 
+/** The hours in a month of OpsCrew's monthly figures. */
+export const HOURS_A_MONTH = 730;
+
 /** The hours in the 30-day month UpCloud prices storage and backups over. */
 export const HOURS_PER_30_DAYS = 720;
 
