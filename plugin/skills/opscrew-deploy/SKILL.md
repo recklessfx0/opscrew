@@ -31,13 +31,13 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
 3. **Interview.** Call `opscrew_interview_questions`. Ask the user every returned question (use the
    question's options when it has them), then call `opscrew_save_requirements` with the answers.
    One question is where to run the app: Hetzner Cloud, DigitalOcean (Droplets), Contabo,
-   OVHcloud, Kamatera or a server the user already has (`own`: a rented server elsewhere, a company machine
+   OVHcloud, Kamatera, IONOS Cloud or a server the user already has (`own`: a rented server elsewhere, a company machine
    or a home server). Its default is the provider whose credentials are already set
    (`HCLOUD_TOKEN`, `DIGITALOCEAN_TOKEN`, all four of Contabo's `CNTB_OAUTH2_CLIENT_ID`,
    `CNTB_OAUTH2_CLIENT_SECRET`, `CNTB_OAUTH2_USER` and `CNTB_OAUTH2_PASS`, or all four of
    OVHcloud's `OVH_ENDPOINT`, `OVH_CLIENT_ID`, `OVH_CLIENT_SECRET` and
    `OVH_CLOUD_PROJECT_SERVICE`, or both of Kamatera's `KAMATERA_API_CLIENT_ID` and
-   `KAMATERA_API_SECRET`), otherwise Hetzner Cloud; let the user choose. For a site that
+   `KAMATERA_API_SECRET`, or IONOS Cloud's `IONOS_TOKEN`), otherwise Hetzner Cloud; let the user choose. For a site that
    needs no
    server, the question also offers `cloudflare-workers` (Cloudflare's hosting: static files free,
    and server-side rendering for Astro, Next.js, Nuxt and SvelteKit) and `github-pages` (GitHub
@@ -213,6 +213,26 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
      - No provider backups (OpsCrew's data snapshots cover the data), no resize (the same two ways
        as on Contabo) and no delete protection. A duplicate server Kamatera names `<name>(1)`
        stops OpsCrew until the user terminates it in the console.
+   - **On IONOS Cloud.** Say what differs before the user pays:
+     - IONOS Cloud sells to businesses only.
+     - It needs `IONOS_TOKEN` (`IONOS_API_URL` only to override the API's address; a user name and
+       password are never read). A token can't be limited: it acts as the user who made it, so
+       recommend a sub-user in a group with only the "Create Data Center", "Create Snapshot" and
+       "Reserve IP" privileges, and a token of at most 90 days (365 is IONOS's maximum).
+     - Each server gets a data centre of its own (`opscrew-<server>`) and IONOS's NIC firewall,
+       active, with one rule per allowed network and port, IPv4 only (the server has no IPv6).
+     - Prices in EUR before VAT, from IONOS's dated list; each size includes a reserved IPv4 address
+       (5 EUR per 30 days), so a stopped server keeps its address. A contract with IONOS CLOUD Inc.
+       pays in USD, at its own prices. Billed by the minute: a server stopped from its own system
+       bills in full, one stopped in IONOS's console still bills its disk and address, and only
+       `npx opscrew destroy`, which deletes the data centre with everything in it, ends the cost.
+       2 TB of outgoing traffic a month per contract, then 0.030 EUR per GB.
+     - Far locations, which design notes with the delay: the Nordics use Berlin, the US west coast
+       uses Lenexa (Las Vegas has no vCPU servers), and Southeast Asia uses Frankfurt (IONOS has no
+       location in Asia or Oceania).
+     - No provider backups (OpsCrew's data snapshots cover the data), no resize (the same two ways
+       as on Contabo), no delete protection, no Cubes or Dedicated Core servers, and no takeover of
+       a create that stopped halfway: the user deletes that data centre in the Data Center Designer.
    - **On a hosting account.** There is one option, the account, without a price, with what the
      app gets there (the hostname, its PHP version, the database, the cron jobs). Say what differs
      from a server:
@@ -242,7 +262,7 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
    ```
 
    It checks the credentials of their cloud provider (Hetzner Cloud, DigitalOcean, Contabo,
-   OVHcloud or Kamatera), plus their Cloudflare and GitHub tokens, shows the plan and asks for approval,
+   OVHcloud, Kamatera or IONOS Cloud), plus their Cloudflare and GitHub tokens, shows the plan and asks for approval,
    creates the server, stores the deploy secrets in GitHub and opens a pull request with the
    infrastructure and deploy workflow. Merging that pull request deploys the app.
 
@@ -384,7 +404,7 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
   every item marked ✗ (tools to install, tokens to create). `npx opscrew init --fix` also adds
   `.opscrew/` to `.gitignore`.
 - **Drift.** When the user asks whether anything changed, or after they worked in the Hetzner Cloud,
-  DigitalOcean, Contabo, OVHcloud, Kamatera or Cloudflare console (or on their own server over SSH, or in
+  DigitalOcean, Contabo, OVHcloud, Kamatera, IONOS Cloud or Cloudflare console (or on their own server over SSH, or in
   Portainer), call `opscrew_drift`. It reports changes made outside OpsCrew (attribute names only;
   on their own server also its SSH, firewall, deploy user and runtime files; in their Portainer the app's stack
   file, environment keys, redeploy setting, registry entry and deploy branch, never a value),
@@ -559,7 +579,7 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
   to the user and pass that hash to `opscrew_apply` as `planHash`.
 - **Runner machines.** A machine of the user's (a home server, a spare PC, a VM with Ubuntu or
   Debian) can run environments' deploy jobs, and with `build` `runner` their builds, if its CPU is
-  the server's (OpsCrew's Hetzner, DigitalOcean, Contabo, OVHcloud and Kamatera servers are x86-64).
+  the server's (OpsCrew's Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera and IONOS Cloud servers are x86-64).
   `opscrew_runner_host_add` with `name`, `user`, `host` and, unless the key is in the SSH agent,
   `keyFile` (ask the user; never a password, and never read the key file): the user confirms its
   host key and approves its host plan in dialogs. `opscrew_runner_host_list` names the machines,
@@ -633,7 +653,10 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
   OVHcloud the server's billing stops, but its snapshots stay and keep billing per GB until the
   user deletes them in the control panel. On Kamatera it terminates the server, which alone ends
   its billing (a stopped server still bills); delete unwanted whole-server snapshots before it, as
-  OpsCrew reaches them only through the server. The app's bucket stays, with its files, unless they add
+  OpsCrew reaches them only through the server. On IONOS Cloud it deletes each server's data centre
+  with everything in it, and its reserved address, which alone ends their billing; whole-server
+  snapshots may outlive it and keep billing per GB, so the user deletes unwanted ones before it,
+  then checks the Data Center Designer. The app's bucket stays, with its files, unless they add
   `--delete-data`. On their own server it never deletes or reinstalls the server: it removes the app and its Cloudflare records after they
   type the app's name, keeps the app's data unless they add `--delete-data`, and reverses
   OpsCrew's own changes to the server only with `--undo-host` (a separate plan they approve).
@@ -700,7 +723,7 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
   and types the app's name; the tool refuses to do it.
 - **A service on a server of its own.** On a cloud server or the user's own server, any of the
   app's services (a database, a cache, a broker) can run on a server of its own, at the same or
-  another provider (Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera) or on another server the user owns
+  another provider (Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera, IONOS Cloud) or on another server the user owns
   with a public address; the web process, workers, cron jobs and add-ons stay on the app's server. Before the
   user decides, call `opscrew_placement_estimate` with the service, the provider, the location and
   optionally the server type: pass on the new server's price, the app's new monthly total and the
@@ -732,7 +755,7 @@ infrastructure. Follow these steps in order and keep the user informed in plain 
 - **Moving the app somewhere else.** Moving a live app to another cloud provider, to a server
   the user owns or into their Portainer (and from any of these to another) is terminal-only on
   purpose; there is no tool for it, and you must not try to perform its steps yourself. Tell the
-  user to run `npx opscrew retarget --to <hetzner|digitalocean|contabo|ovhcloud|kamatera|own|portainer>` in
+  user to run `npx opscrew retarget --to <hetzner|digitalocean|contabo|ovhcloud|kamatera|ionos|own|portainer>` in
   their own terminal (`npx opscrew retarget --help` explains the flags). For their own server or Portainer
   it asks the same questions as the interview (how to reach the server; Portainer's address,
   certificate and environment, and its host's public address). It prepares the new side next to

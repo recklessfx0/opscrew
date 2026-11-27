@@ -6,7 +6,7 @@ home. You get the same result as on the servers OpsCrew creates for you: a harde
 deployed from [GitHub](https://github.com/) with TLS, health checks and rollback, and the `verify`, `secure` and `drift`
 checks. To have OpsCrew create the server for you instead, see [Hetzner Cloud](hetzner.md),
 [DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md), whose Public
-Cloud servers OpsCrew creates itself, and [Kamatera](kamatera.md).
+Cloud servers OpsCrew creates itself, [Kamatera](kamatera.md) and [IONOS Cloud](ionos.md).
 
 OpsCrew never creates, reinstalls or deletes your server. It inspects it first, shows you every
 change it would make, and changes nothing until you approve that exact list.

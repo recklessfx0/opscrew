@@ -2,7 +2,7 @@
 
 OpsCrew can create your app's server at [Kamatera](https://www.kamatera.com/), on your own
 account, as it does at [Hetzner Cloud](hetzner.md), [DigitalOcean](digitalocean.md),
-[Contabo](contabo.md) and [OVHcloud](ovhcloud.md). You get the same result: a hardened server, the
+[Contabo](contabo.md), [OVHcloud](ovhcloud.md) and [IONOS Cloud](ionos.md). You get the same result: a hardened server, the
 app deployed from [GitHub](https://github.com/) with TLS, health checks and rollback, and the
 `verify`, `secure` and `drift` checks.
 

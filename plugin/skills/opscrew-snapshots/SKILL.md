@@ -1,6 +1,6 @@
 ---
 name: opscrew-snapshots
-description: Back up and restore the data of an app OpsCrew deployed, with OpsCrew's snapshots: see which snapshots exist (read-only), and guide the user through taking one before a risky change, putting one back, deleting one, a snapshot of the whole server at Hetzner, DigitalOcean, Contabo, OVHcloud or Kamatera, scheduled snapshots and an encrypted copy off the server, each run in their own terminal. Use when the user asks "is my data backed up?", "back up my database", "take a snapshot", "restore yesterday's data", "I deleted rows by mistake", "what snapshots do I have?", "schedule backups", "keep a copy somewhere else", "what if the server dies?", or about backups on their own server or Portainer.
+description: Back up and restore the data of an app OpsCrew deployed, with OpsCrew's snapshots: see which snapshots exist (read-only), and guide the user through taking one before a risky change, putting one back, deleting one, a snapshot of the whole server at Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera or IONOS Cloud, scheduled snapshots and an encrypted copy off the server, each run in their own terminal. Use when the user asks "is my data backed up?", "back up my database", "take a snapshot", "restore yesterday's data", "I deleted rows by mistake", "what snapshots do I have?", "schedule backups", "keep a copy somewhere else", "what if the server dies?", or about backups on their own server or Portainer.
 ---
 
 # Snapshots and restores with OpsCrew
@@ -69,7 +69,7 @@ encrypted copy off the server. A whole-server snapshot is deleted at its provide
 
 ## A snapshot of the whole server
 
-On a server OpsCrew created at Hetzner, DigitalOcean, Contabo, OVHcloud or Kamatera,
+On a server OpsCrew created at Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera or IONOS Cloud,
 `npx opscrew snapshot --server` has the provider snapshot the server's whole disk while it runs; a
 live snapshot may not be consistent, and `--stop` shuts the server down for it, after the user
 approves that downtime. At Hetzner and DigitalOcean it costs a monthly price (the summary shows
@@ -110,6 +110,20 @@ On Kamatera:
   `npx opscrew destroy`, then check Kamatera's console.
 - A stopped server still bills; only the destroy's terminate ends the cost.
 - OpsCrew turns on no Kamatera backups: the data snapshot with its copy off the server covers the
+  data. A server can't be resized: the way to another size is the same as on Contabo.
+
+On IONOS Cloud:
+
+- A snapshot is of the server's disk, billed per GB, 0.04 EUR per 30 days (the summary shows the
+  rate). The token's user needs the "Create Snapshot" privilege. A restore reverts the disk to the
+  snapshot; the server keeps its reserved address and its firewall.
+- IONOS keeps snapshots apart from the server's data centre and doesn't say whether they outlive
+  it, so OpsCrew counts them as kept and billing. OpsCrew finds one through its server: delete the
+  unwanted ones with `npx opscrew snapshot delete <id>` before `npx opscrew destroy`, then check the
+  Data Center Designer.
+- A stopped server still bills (its disk and address when stopped in IONOS's console, in full when
+  shut down from its own system); only the destroy, which deletes the data centre, ends the cost.
+- OpsCrew turns on no IONOS backups: the data snapshot with its copy off the server covers the
   data. A server can't be resized: the way to another size is the same as on Contabo.
 
 ## Scheduled snapshots

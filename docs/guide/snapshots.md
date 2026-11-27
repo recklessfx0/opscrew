@@ -288,7 +288,7 @@ the copy's files and any copy left.
 ## Whole-server snapshots
 
 On a server OpsCrew created at [Hetzner Cloud](hetzner.md),
-[DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md) or [Kamatera](kamatera.md), the provider can also
+[DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md), [Kamatera](kamatera.md) or [IONOS Cloud](ionos.md), the provider can also
 snapshot the whole disk:
 
 ```bash
@@ -325,6 +325,10 @@ npx opscrew restore --server <id>                  # rebuild the server from it
   server: delete the ones you don't want before `opscrew destroy` terminates the server, since
   Kamatera doesn't say whether it keeps them after (see
   [Deploy to Kamatera](kamatera.md#snapshots)).
+- **At IONOS Cloud,** snapshots are billed per GB per 30 days, and IONOS keeps them apart from the
+  server's data centre, so they may outlive it. OpsCrew finds one through its server: delete the
+  ones you don't want before `opscrew destroy` deletes the data centre, then check the Data Center
+  Designer (see [Deploy to IONOS Cloud](ionos.md#snapshots)).
 - **DigitalOcean's token** needs two more scopes, `snapshot:delete` and `droplet:admin`, only to
   delete or restore whole-server snapshots. Without them, OpsCrew says so.
 

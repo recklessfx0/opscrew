@@ -1,7 +1,7 @@
 # A second app on another app's server
 
 A server OpsCrew created for one app at [Hetzner Cloud](hetzner.md),
-[DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md) or [Kamatera](kamatera.md) can run more apps, from other
+[DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md), [Kamatera](kamatera.md) or [IONOS Cloud](ionos.md) can run more apps, from other
 repositories or from the [same one](several-apps.md). The second app gets its own hostnames, its
 own containers, data and deploy key, and its own deploys and approvals. It shares the server, its
 setup and its proxy with the app OpsCrew created the server for. It adds no server to pay for.

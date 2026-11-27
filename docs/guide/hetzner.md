@@ -2,7 +2,7 @@
 
 OpsCrew can create your app's server at [Hetzner Cloud](https://www.hetzner.com/cloud), on your
 own account, as it does at [DigitalOcean](digitalocean.md), [Contabo](contabo.md),
-[OVHcloud](ovhcloud.md) and [Kamatera](kamatera.md). You get a
+[OVHcloud](ovhcloud.md), [Kamatera](kamatera.md) and [IONOS Cloud](ionos.md). You get a
 hardened server, the app deployed from [GitHub](https://github.com/) with TLS, health checks and
 rollback, and the `verify`, `secure` and `drift` checks.
 
@@ -18,7 +18,7 @@ rollback, and the `verify`, `secure` and `drift` checks.
 - **Prices in EUR, before VAT,** with servers in Germany, Finland, the US and Singapore.
 
 To compare, see [Deploy to DigitalOcean](digitalocean.md), [Deploy to Contabo](contabo.md),
-[Deploy to OVHcloud](ovhcloud.md) and [Deploy to Kamatera](kamatera.md).
+[Deploy to OVHcloud](ovhcloud.md), [Deploy to Kamatera](kamatera.md) and [Deploy to IONOS Cloud](ionos.md).
 Once your app runs, `npx opscrew advise` proposes a move when another provider has the same server
 for less (see [Cost](advise.md#cost)).
 
@@ -148,7 +148,7 @@ disk: see [Changing a server's type](advise.md#changing-a-servers-type).
 
 Another location means a new server: design says so first, because the next `provision` deletes
 the old server with the data on it. To move the app to another provider, use
-`npx opscrew retarget --to digitalocean`, `--to contabo`, `--to ovhcloud` or `--to kamatera` (see
+`npx opscrew retarget --to digitalocean`, `--to contabo`, `--to ovhcloud`, `--to kamatera` or `--to ionos` (see
 [Moving your app somewhere else](retarget.md)).
 
 ## Removing the app
