@@ -713,7 +713,9 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && npx vitest run --root packages/providers/ionos && pnpm lint`
   - Effort: high
 
-- [ ] T3540 [P] [US10] [US12] The catalogue and the price table
+- [x] T3540 [P] [US10] [US12] The catalogue and the price table (built 2026-11-27; `extras()` has
+  the snapshot rate only, since `ProviderExtras` has no traffic field: the 2 TB allowance and its rate
+  are constants the texts and the guide quote, as on Kamatera)
   - Owns: `packages/providers/ionos/src/catalog.ts`, `catalog.test.ts`, `static-prices.ts`
   - Reads: plan 13.; research R5 §3, §5 and §7; decision 16; Kamatera's catalogue
   - Depends: T3538
