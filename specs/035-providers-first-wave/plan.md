@@ -634,7 +634,9 @@ branch, so that it rebases on IONOS's pull request in one step.
     server's (a drop of everything but the allowed ports and the ephemeral range) is a possible
     follow-up, which the pull request asks the lead about. This departs from "a server's own
     firewall only where no cloud firewall exists" because the cloud firewall here can't hold a
-    connection's state.
+    connection's state. As on Kamatera, the server is reachable for the few seconds between its
+    start and the script's first step; the guide, design's summary and the plan say so. Approved
+    by the lead on #69 (2026-11-28).
 24. **Premium plans only**, five of them at their included MaxIOPS disk: `PREMIUM-2xCPU-2GB` (50 GB,
     €16), `PREMIUM-2xCPU-4GB` (50 GB, €26), `PREMIUM-2xCPU-8GB` (100 GB, €38), `PREMIUM-4xCPU-8GB`
     (100 GB, €52) and `PREMIUM-4xCPU-16GB` (150 GB, €92). Design asks for 40 GB of disk at least;
