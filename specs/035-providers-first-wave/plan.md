@@ -524,3 +524,143 @@ stay on the user's computer.
 `tasks.md` holds the order, the waves and each task's number. OVHcloud is T3501 to T3518, with
 T3515 waiting for the founder. Kamatera is T3519 to T3533, stacked on OVHcloud's branch and
 following it in the review queue.
+
+### 16. The UpCloud package (`packages/providers/upcloud`, `@opscrew/provider-upcloud`)
+
+UpCloud is the seventh, `upcloud`, stacked on Kamatera's line (issue #67) beside IONOS Cloud's
+branch. It needs **no contract change**: its Terraform provider is the vendor's
+(`UpCloudLtd/upcloud`, pinned `~> 5.49`) and covers the server, its disk, its login key, its
+labels and its Simple Backup (R6 §2); the first boot and the server's own firewall reuse what
+Kamatera added (`firstBoot` `script`, `firewallCheck` `server`, issue #13).
+
+- **`client.ts`**:
+  - **Front:** `https://api.upcloud.com/1.3`. Every call carries `Authorization: Bearer` with
+    `UPCLOUD_TOKEN`, registered with the redactor. A user name and password are never read
+    (decision 22).
+  - **Waiting:** UpCloud answers a change at once and works on it after; the client polls a
+    server's `state` (`maintenance` to `started` or `stopped`) and a storage's (`backuping`,
+    `maintenance` to `online`) with an injected clock and sleep, and fails plainly on `error` or
+    a timeout.
+  - **Errors:** the body is `{ error: { error_code, error_message } }` (R6 §10); a 401 says the
+    token is wrong or expired and how to make one; a 402 `INSUFFICIENT_CREDITS` says to add
+    credits; a 403 names the missing permission (a sub-account's access); a resource limit names
+    it and says support raises it; a 409 `*_STATE_ILLEGAL` says what state the server or disk is
+    in; a 429 waits on reads only; no `post` is retried.
+- **`static-prices.ts`**: the EUR price list of 2026-10-24 (R6 §7): the five Premium plans of
+  decision 24, each with its cores, memory, MaxIOPS disk, monthly price (the cap), and hourly price
+  (monthly / 672); on-demand backups €0.056 per GB a month; Simple Backup's week plan +20%.
+- **`catalog.ts`**: the table in every mapped zone, `source: "static"` and the date. With a token,
+  `listOffers` also reads `GET /1.3/plan` once and leaves out every offer whose plan UpCloud
+  doesn't list (marked `available: false`), so a guessed plan name never reaches a plan
+  (decision 24). `extras(zone)`: the backup rate per GB, `backupPercent` 20.
+- **`servers.ts`** (`ServerSnapshotApi`):
+  - **`findAppServers(app, names?)`:** `GET /1.3/server`, the servers whose title is one of
+    `names` (or, without them, `<app>` and `<app>-…`) and whose `opscrew-app` label is `app` when
+    the list carries labels; several servers with one title stop with each named (decision 27).
+    An `AppServer`'s id is the server's UUID.
+  - **Snapshots:** on-demand backups of the server's first disk (`GET /1.3/server/{uuid}` for its
+    storage, then `POST /1.3/storage/{uuid}/backup` titled `opscrew-<app>-<server>-<time>`),
+    awaited until the disk is `online`; listed from `GET /1.3/storage/backup` by that title prefix
+    and their origin, oldest first; deleted with `DELETE /1.3/storage/{backup uuid}`; restored with
+    `POST /1.3/storage/{backup uuid}/restore` after a stop, awaited, then started (decision 28).
+  - **Power:** `powerOn` (start), `powerOff` (a soft stop with a timeout, then hard) and `restart`,
+    each awaited.
+  - The server's delete is Terraform's, so the connector's `remove` is not used.
+- **`connector.ts`**: `configured`, `catalog()`, `servers`, and `verifyCredentials`, which reads
+  `GET /1.3/account` and says the account's user name, its credits and its resource limits. No
+  `firewalls`, `backups` or `objectStorage`.
+- **`definition.ts`**:
+  - `currency: "EUR"`, `billing: { model: "hourly", counts: "started-hour", setupFee: false }`;
+  - `providerBackups: true`, `backupPercent: 20`, `backupsOutliveServer: true` (decision 29);
+  - `snapshots: { kind: "per-gb", … }` at €0.056 a GB a month, `serverSnapshotsOutliveServer: true`;
+  - `deleteProtection: false`, `resize: false`, `removal: { kind: "delete" }`;
+  - `firstBoot: "script"`, `secops.firewallCheck: "server"`, `sshKeyAttribute` reading the server's
+    login keys; `firewallResourceType` names `upcloud_firewall_rules`, which the module never
+    creates (decision 23);
+  - `lifecycleIgnored` with `user_data`, `login` and `template` (a new template or script would
+    rebuild the server's disk);
+  - `tokenRules` for `ucat_` followed by 26 characters of Crockford base32 (R6 §1),
+    `envPrefixes: ["UPCLOUD"]`;
+  - the zones of decision 26;
+  - `unavailable` and `serverLimit` patterns from UpCloud's error codes, unverified until the live
+    pass;
+  - every text in plain English, and the destroy texts say what may outlive the server.
+- **`module/` (`upcloud-instance`)**, one per server:
+  - `locals.plans` mapping each plan to its MaxIOPS disk size, checked against the offers by a test;
+  - `upcloud_server` with `hostname` and `title` = `var.name`, `zone`, `plan`, `metadata = true`,
+    `firewall = false`, `labels = { opscrew-app = var.app }`, `template` (`Ubuntu Server 24.04 LTS
+    (Noble Numbat)`, the plan's disk, MaxIOPS), a public IPv4 interface and a utility interface,
+    `login` with the deploy key and no password, `user_data` = the first-boot script with the server
+    firewall first (as Kamatera's `startup_script`), a dynamic `simple_backup { plan = "dailies" }`
+    when `var.backups`, and `lifecycle.ignore_changes` on what would rebuild the disk;
+  - the outputs the other modules have.
+
+### 17. UpCloud's id joins the lists, and its variables never reach the agent
+
+`upcloud` in `ProviderId`, `VpsProviderId`, `VpsProviderSchema`, `DEFAULT_IMAGES`,
+`CLOUD_PROVIDERS` (after `kamatera`, and after `ionos` once IONOS's pull request is in), the
+plugin's credential lists (`UPCLOUD_TOKEN`) and the lockfile, as for Kamatera and IONOS Cloud,
+through the issue `[035] upcloud joins the provider lists`. `packages/core/src/env.ts` gains
+`UPCLOUD_` among the prefixes the agent never gets. All of it is one commit at the end of the
+branch, so that it rebases on IONOS's pull request in one step.
+
+### 18. The guide, the plugin, the live pass, and the tests (UpCloud)
+
+- `docs/guide/upcloud.md` on `kamatera.md`'s model: the sub-account and token, the zones, prepaid
+  EUR credits and the started-hour cap, what keeps billing, the server's own firewall and why,
+  port 25 and the trial's locked firewall, what isn't offered.
+- The plugin's deploy and snapshot skills, the MCP tools, `docs/e2e.md` and
+  `packages/cli/test/live/upcloud.test.ts` on one `PREMIUM-2xCPU-2GB` (about €0.024 an hour), never
+  run without the founder's go-ahead.
+- **Tests:** the client with `fetch` fakes (the bearer header, a state polled to its end and to
+  `error`, each error status in plain English, no `post` retried, a leak check); the catalogue
+  (each price from the table, the plan list's filter); the server API; the module (`tofu validate`,
+  the first-boot script with the server firewall first, no `upcloud_firewall_rules`, Simple Backup
+  only when asked); SecOps on an UpCloud plan JSON (the server firewall's networks read from
+  `user_data`); the registry over the definitions; every other provider's files byte-identical.
+
+## Decisions for UpCloud (the contributor, 2026-11-28)
+
+22. **A token only.** UpCloud recommends tokens and will retire Basic sign-in, so OpsCrew reads
+    `UPCLOUD_TOKEN` alone, which the Terraform provider reads too. A token can't be limited to some
+    resources, so the guide recommends a sub-account limited to servers and storage, and an expiry
+    of 90 days or less.
+23. **The server's own firewall, not UpCloud's.** UpCloud's Public & Utility firewall is stateless
+    (R6 §4): letting the server's downloads and the app's outgoing calls back in would open every
+    ephemeral port to the internet, which SecOps fails as an open port, and a source-port rule can
+    be spoofed. The stateful nftables firewall Kamatera's first boot installs (issue #13) does what
+    OpsCrew's rules mean, needs no contract change, and is checked by SecOps and `opscrew secure`
+    as on Kamatera. UpCloud's firewall is left off; turning it on with rules that only add to the
+    server's (a drop of everything but the allowed ports and the ephemeral range) is a possible
+    follow-up, which the pull request asks the lead about. This departs from "a server's own
+    firewall only where no cloud firewall exists" because the cloud firewall here can't hold a
+    connection's state.
+24. **Premium plans only**, five of them at their included MaxIOPS disk: `PREMIUM-2xCPU-2GB` (50 GB,
+    €16), `PREMIUM-2xCPU-4GB` (50 GB, €26), `PREMIUM-2xCPU-8GB` (100 GB, €38), `PREMIUM-4xCPU-8GB`
+    (100 GB, €52) and `PREMIUM-4xCPU-16GB` (150 GB, €92). Design asks for 40 GB of disk at least;
+    Starter plans hold 10 to 50 GB and, where they fit, cost more than `PREMIUM-2xCPU-2GB`.
+    Only two Premium names are confirmed in UpCloud's sources, so with a token the catalogue keeps
+    only the plans UpCloud lists.
+25. **EUR, by the started hour, capped.** The hourly price is the monthly price over 672 hours (28
+    days); the monthly figure for 730 hours is the cap. Payments in other currencies are exchanged
+    to EUR.
+26. **Every region maps** to a zone with Premium plans: `eu-central` to `de-fra1` (then `nl-ams1`,
+    `pl-waw1`), `eu-north` to `fi-hel1` (then `fi-hel2`; Stockholm, Copenhagen and Stavanger lack
+    the newer CPU generations on UpCloud's availability page), `us-east` to `us-nyc1`, `us-west` to
+    `us-sjo1`, `ap-southeast` to `sg-sin1`. No region needs a note.
+27. **Titles and a label.** The server's hostname and title are the plain name (`<app>`,
+    `<app>-<name>`); it carries the label `opscrew-app = <app>`. Labels, not tags, since only the
+    main account can make tags.
+28. **Snapshots are on-demand backups** of the server's disk, through the API (the provider has no
+    snapshot resource), at €0.056 per GB a month; they outlive the server in what OpsCrew says.
+29. **Simple Backup's week plan** (`dailies`: a daily backup kept 7 days, +20% of the plan) when
+    the plan asks for provider backups, like Hetzner's 20%. Whether it outlives the server is
+    unverified, so OpsCrew says it may.
+30. **No resize, no delete protection.** UpCloud resizes a stopped server, but a disk only grows;
+    the first cut refuses a size change and says a move is the way. UpCloud documents no delete
+    protection.
+31. **The takeover uses the default import.** `upcloud_server` imports by its UUID, which is the
+    `AppServer` id, so no `importId` is needed; whether an imported server plans cleanly with the
+    template and login it was created with is checked on the live pass.
+
+UpCloud is T3548 to T3557 in `tasks.md`, stacked on Kamatera's line beside IONOS Cloud's.

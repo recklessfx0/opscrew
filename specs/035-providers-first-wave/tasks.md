@@ -675,3 +675,138 @@ dependencies or the lockfile. No real secret in any test: `fakeSecret(kind)` and
       already names servers (no new naming rule). A test: app `shop` with a sibling `shop-staging`
       and `shop-staging(1)` on the account finds neither, and its own `shop-<extra>` still.
   - Effort: high
+
+## Phase 8: UpCloud
+
+UpCloud is stacked on Kamatera's line (`035-upcloud`, issue #67), plan 16. to 18. and decisions 22 to
+31. No contract change; the id joins the shared lists through the issue `[035] upcloud joins the
+provider lists`, in one commit at the end of the branch. Worktrees for this phase:
+`D:/opscrew/.claude/worktrees/t35NN`, branched from `035-upcloud`. Every UpCloud test file ends with
+a leak check of the token.
+
+- [x] T3548 (lead) The package's skeleton (built 2026-11-28)
+  - Accept: `packages/providers/upcloud` with `package.json` (`@opscrew/provider-upcloud`, the same
+    dependencies, scripts and `exports` as `@opscrew/provider-kamatera`), `tsconfig.json`,
+    `vitest.config.ts`, an empty `module/` and `src/index.ts` exporting nothing yet. `upcloud` in
+    `ProviderId` and the lockfile wait for T3553, in the branch's last commit; until then the
+    branch carries them in a working commit so the package typechecks.
+  - Effort: lead
+
+- [ ] T3549 [P] [US14] UpCloud's API client
+  - Owns: `packages/providers/upcloud/src/client.ts`, `client.test.ts`, `src/__fixtures__/client*`
+  - Reads: plan 16.; research R6 §1 and §10; decision 22; IONOS's and Kamatera's `client.ts`
+  - Depends: T3548
+  - Accept:
+    - `UPCLOUD_ENV` names `UPCLOUD_TOKEN`. Reading it registers it with the redactor, and a
+      missing one is named before any call. `UPCLOUD_USERNAME` and `UPCLOUD_PASSWORD` are never
+      read.
+    - Every call goes to `https://api.upcloud.com/1.3` with `Authorization: Bearer`; every answer is
+      parsed with a zod schema the caller passes.
+    - A wait for a server's or a storage's state, with the clock and sleep injected, a timeout with
+      a plain message, and a plain failure on the `error` state.
+    - Errors from the body's `error.error_code` and `error_message`: 401 (wrong or expired token,
+      how to make one), 402 `INSUFFICIENT_CREDITS` (add credits), 403 (the missing access), 404, a
+      resource limit (named, and that support raises it), 409 state errors (the state named), 429
+      (reads wait, at most 60 seconds); no `post` is retried.
+    - Each route's source (developers.upcloud.com's 1.3 pages) is listed in the report.
+    - Tests with `fetch` fakes cover each rule, and a leak check shows the token in no error, log
+      or fixture.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-upcloud && npx vitest run --root packages/providers/upcloud && pnpm lint`
+  - Effort: high
+
+- [ ] T3550 [P] [US14] [US16] The catalogue and the price table
+  - Owns: `packages/providers/upcloud/src/catalog.ts`, `catalog.test.ts`, `static-prices.ts`
+  - Reads: plan 16.; research R6 §3, §5 and §7; decisions 24 to 26; IONOS's catalogue
+  - Depends: T3548
+  - Accept:
+    - The five plans of decision 24 in every mapped zone, from the EUR list of 2026-10-24: the
+      monthly price, the hourly price (monthly / 672), `billing: "hourly"`, no `setupFee`, MaxIOPS
+      disk sizes, `source: "static"`, the list's date.
+    - With a plan lister injected (the connector passes one when a token is set), offers whose plan
+      UpCloud doesn't list are `available: false`; a failed listing leaves the table as it is and
+      says nothing secret.
+    - `extras(zone)`: the backup rate per GB (€0.056 a month, and by the hour) and
+      `backupPercent` 20.
+    - A test recomputes each hourly price from the monthly one.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-upcloud && npx vitest run --root packages/providers/upcloud && pnpm lint`
+  - Effort: medium
+
+- [ ] T3551 [US14] [US15] [US16] The server API and the connector
+  - Owns: `packages/providers/upcloud/src/servers.ts`, `servers.test.ts`, `connector.ts`,
+    `connector.test.ts`, their fixtures
+  - Reads: plan 16.; research R6 §5, §8 and §10; decisions 27 and 28; `ServerSnapshotApi` and
+    `VpsConnector` in `packages/contracts/src/connector.ts` (with `findAppServers(app, names?)`,
+    #56); IONOS's and Kamatera's `servers.ts` and `connector.ts`; developers.upcloud.com's pages
+    for servers and storages
+  - Depends: T3549, T3550
+  - Accept:
+    - `findAppServers(app, names?)`: the servers whose title is exactly one of `names` (without
+      them, `<app>` and `<app>-…`), with the app's label when the answer carries labels; an
+      `AppServer`'s id is the UUID. A sibling app's `shop-staging` is never `shop`'s when `names`
+      is given; two servers with one title stop with both named.
+    - Snapshots as on-demand backups of the server's first disk: created (titled
+      `opscrew-<app>-<server>-<time>`), awaited, listed by that prefix and their origin oldest
+      first, deleted, and restored (stop, restore, wait, start).
+    - Power: `powerOn`, `powerOff` (soft with a timeout, then hard) and `restart`, awaited.
+    - The connector: `configured`, `catalog()` (passing the plan lister with a token), `servers`
+      (undefined without the token), and `verifyCredentials`, which reads `GET /1.3/account` and
+      says the user name, the credits and the limits it found. No `firewalls`, `backups` or
+      `objectStorage`.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-upcloud && npx vitest run --root packages/providers/upcloud && pnpm lint`
+  - Effort: xhigh
+
+- [ ] T3552 [US14] [US15] [US16] The definition, the module and SecOps's reading of the server
+  - Owns: `packages/providers/upcloud/src/definition.ts`, `definition.test.ts`, `src/index.ts`,
+    `module/**`, `src/generated/**`
+  - Reads: plan 16.; research R6 in full; decisions 22 to 31; `packages/contracts/src/provider.ts`;
+    Kamatera's `definition.ts` and `module/` (the script first boot and the server firewall);
+    IONOS's `definition.ts`; `scripts/gen-provider-modules.ts`; `UpCloudLtd/upcloud` 5.49's docs
+    (`upcloud_server`)
+  - Depends: T3550, T3551
+  - Accept:
+    - `definition` as plan 16., validated by `validateCloudProvider` in the test, with the zones of
+      decision 26 and the texts in plain English.
+    - The module `upcloud-instance` as plan 16.: the server with its hostname, title, label,
+      template, interfaces, login key, `metadata = true`, `firewall = false`, `user_data` = the
+      first-boot script with the server firewall first, Simple Backup only when `var.backups`,
+      `lifecycle.ignore_changes` on what would rebuild the disk; no `upcloud_firewall_rules`.
+    - `locals.plans` maps each plan to its disk, and a test keeps it equal to the offers.
+    - SecOps on an UpCloud plan JSON fixture: the server firewall's networks are read from
+      `user_data`, the SSH key from the login block, and Simple Backup from `simple_backup`; a
+      plan with SSH open to everyone fails.
+    - The module validates and passes `fmt -check` under `tofu`, skipping plainly without the
+      network; `src/generated/module.ts` is regenerated.
+  - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-upcloud && OPSCREW_IT=1 npx vitest run --root packages/providers/upcloud && pnpm lint`
+  - Effort: xhigh
+
+- [ ] T3553 (lead; the issue `[035] upcloud joins the provider lists`) `upcloud` joins the lists and
+  the registry
+  - Accept: as T3527 and T3543, for `upcloud` after `kamatera` (after `ionos` once IONOS's pull
+    request is in), with `UPCLOUD_TOKEN` in the plugin's credential lists
+    (`plugin/.codex-plugin/plugin.json` `env_vars` and the TOML in `docs/guide/mcp-clients.md`),
+    `UPCLOUD_` among the prefixes the agent's environment never gets (with its test), and the
+    shared tests' provider lists. One commit, the branch's last.
+  - Effort: lead
+
+- [ ] T3554 [P] [US17] The guide, the plugin and the MCP tools
+  - Owns: `docs/guide/upcloud.md`, UpCloud's lines on the guide pages that list providers, the
+    plugin's deploy, snapshot and rotate skills
+  - Reads: plan 18.; spec US17; `docs/guide/kamatera.md`
+  - Depends: T3552
+  - Accept: spec US17 1. and 3.
+  - Effort: medium
+
+- [ ] T3555 [P] [US17] The live test and its steps
+  - Owns: `packages/cli/test/live/upcloud.test.ts`, UpCloud's section of `docs/e2e.md`
+  - Reads: `packages/cli/test/live/kamatera.test.ts`; plan 18.
+  - Depends: T3552
+  - Accept: the flow on one `PREMIUM-2xCPU-2GB` (about €0.024 an hour), the leak scan for the token,
+    and the check after the destroy that no server titled `<app>…` is left and which backups
+    remain; never run in this task.
+  - Verify: `pnpm turbo run typecheck --filter=opscrew && pnpm lint`
+  - Effort: medium
+
+- [ ] T3556 (lead) A fresh review of UpCloud's branch, `pnpm check`, research R6 updated with the
+  implementers' findings, then its pull request into `035-kamatera`
+
+- [ ] T3557 (lead) The live pass, only with the founder's go-ahead (it costs money)

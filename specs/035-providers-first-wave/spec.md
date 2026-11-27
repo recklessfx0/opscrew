@@ -548,3 +548,179 @@ UpCloud follows IONOS Cloud, in the same way.
   - monthly billing, resizing and delete protection, for both providers;
   - Kamatera's private networks, Kubernetes and its console firewall automation;
   - IONOS Cloud and UpCloud, which are this feature's later phases.
+
+## UpCloud (the fourth provider)
+
+UpCloud specified 2026-11-28 on `035-upcloud`, stacked on Kamatera's line (issue #67). Research:
+[research.md](research.md) R6. The plan's sections 16. to 18. and its "Decisions for UpCloud" (22 to
+31) hold the design; `tasks.md`'s Phase 8 the tasks.
+
+### Why UpCloud
+
+UpCloud is a Finnish provider with fifteen data centres in Europe, North America, Asia and
+Australia, billed in EUR by the started hour with a monthly cap of 28 days, and its Terraform
+provider is the vendor's own. Its smallest plan that holds an OpsCrew app costs €16 a month. It
+differs in ways the user must see (R6):
+- its **firewall is stateless**: to let the server's own downloads back in, it would have to open
+  every ephemeral port to the internet. OpsCrew uses the **server's own firewall** instead, the
+  stateful one it already installs first at the first boot on Kamatera, and leaves UpCloud's off;
+- the first boot is delivered as **`user_data` holding a script**, which UpCloud runs once as root;
+- billing is **prepaid**: when the account's credits run out, UpCloud disables its servers;
+- a **stopped server still bills** its plan; only a delete ends the cost;
+- its Terraform provider has **no snapshot resource**, so whole-server snapshots are on-demand
+  backups through the API, and they outlive the server;
+- a **token can't be limited** to some resources, only to IP ranges and an expiry.
+
+### User Story 14 - Deploy an app to an UpCloud server (Priority: P1)
+
+**Why this priority**: this is UpCloud's point: a fast server with MaxIOPS storage, in Europe,
+North America or Asia, with prices that hold in every zone and no traffic charges.
+
+**Independent Test**: against fakes of UpCloud's API and the engine, interview, design, provision,
+deploy, verify, status, secure and drift run on an UpCloud app. The live pass, which needs an
+account and the founder's go-ahead, proves the same on one `PREMIUM-2xCPU-2GB`.
+
+**Acceptance Scenarios**:
+
+1. **Given** `UPCLOUD_TOKEN` in the environment, **When** the user runs `opscrew interview`, **Then** OpsCrew offers UpCloud next to
+   the other cloud providers, with the zones it serves. When only UpCloud's token is set, it
+   chooses UpCloud without asking. A user name and password are never read.
+2. **When** the user runs `opscrew design`, **Then** the options show UpCloud's Premium plans, from
+   a dated table of UpCloud's EUR price list, each with:
+   - the hourly price (the monthly price over 672 hours) and the monthly figure, which is also the
+     cap, in euros before VAT;
+   - the price list's date;
+   - its MaxIOPS disk and its public IPv4 address, both in the price;
+   - no setup fee, prepaid credits, billing by the started hour, and that only a delete ends the
+     cost: a stopped server bills its plan;
+   - Simple Backup at +20% of the plan's price, when the plan asks for provider backups.
+3. **When** the user runs `opscrew provision` and approves the plan by its hash, **Then** OpsCrew
+   creates on the user's account, for each server:
+   - the server (a Premium plan, Ubuntu 24.04, its plan's MaxIOPS disk, a public IPv4 interface and
+     a utility interface), named `<app>` or `<app>-<name>` as its hostname and title, and labelled
+     with the app;
+   - its SSH key, as the login key UpCloud places at creation (it has no key resource);
+   - the shared first-boot setup as the server's **`user_data` script**, with the metadata service on;
+   - the app's **server firewall** first in that script (default deny; SSH from the allowed
+     networks, the web ports on a server that serves the web, WireGuard where it is used), and
+     UpCloud's own firewall off, because it is stateless.
+
+   The plan says "cloud firewall: none; server firewall: on", and `opscrew secure` fails until the
+   server's firewall is in place, as on Kamatera. The deploy, verify, status, secure and drift
+   commands then work as on the other providers.
+4. **Given** a plan UpCloud refuses (the account's resource limits, too few credits, or a plan not
+   offered in the zone), **When** the plan is applied, **Then** provision stops with UpCloud's
+   answer and what to do (raise the limit with support, add credits, or choose another zone).
+5. **Given** values that are missing or wrong, **Then** `opscrew init` and provision name what is
+   missing and link UpCloud's page for API tokens. They say a token acts with the rights of the
+   account that made it, recommend a sub-account limited to servers and storage, and a token of at
+   most 90 days.
+
+---
+
+### User Story 15 - Remove an app from UpCloud honestly (Priority: P1)
+
+**Acceptance Scenarios**:
+
+1. **Given** an app on UpCloud, **When** the user runs `opscrew destroy`, **Then** the plan says:
+   - each server is stopped and deleted with its disk, which releases its address, and only the
+     delete ends the cost;
+   - the server's backups (OpsCrew's on-demand ones and Simple Backup's) may outlive it and keep
+     billing per GB a month; each is named, and OpsCrew deletes none of them;
+   - OpsCrew removes the app's DNS records.
+2. **Then** OpsCrew's own data snapshot is offered first, and the approval and the typed
+   confirmation of the server's name come before anything is deleted, as on every provider.
+
+---
+
+### User Story 16 - Everything around a server, on UpCloud (Priority: P2)
+
+**Acceptance Scenarios**:
+
+1. **Whole-server snapshots** (`opscrew snapshot --server`, `restore --server`) work through
+   UpCloud's API as on-demand backups of the server's disk, at €0.056 per GB a month; a restore
+   stops the server first.
+2. **Moves**, **several servers**, **previews**, **monitoring**, **logs**, **rollback** and **data
+   snapshots** work on UpCloud servers as on the others. A size change is refused with the reason
+   and the way to do it (a move), as on OVHcloud, Kamatera and IONOS Cloud.
+3. **`opscrew advise`** and **`opscrew rotate`** include UpCloud (its price list's date; how to
+   replace the token).
+4. **No delete protection, no resize:** each is said plainly where it matters.
+
+---
+
+### User Story 17 - UpCloud in the guide, and its live pass (Priority: P3)
+
+**Acceptance Scenarios**:
+
+1. **Given** the guide, **Then** a page for UpCloud says:
+   - how to make the sub-account and its token, and why;
+   - which zones OpsCrew offers and what each OpsCrew region maps to;
+   - how billing works (prepaid EUR credits, the started hour, the monthly cap, what keeps billing,
+     what happens when the credits run out);
+   - why the server's own firewall is used, and that UpCloud's firewall stays off;
+   - that outbound mail on port 25 is closed until UpCloud's support opens it, and that the free
+     trial locks the firewall;
+   - what isn't offered: Starter and Cloud Native plans, resizing, delete protection.
+2. **Given** `docs/e2e.md`, **Then** UpCloud's live pass has its steps, its variables and its cost.
+3. **Then** the MCP tools accept `upcloud` wherever they accept a cloud provider, and the deploy and
+   snapshot skills say what differs on UpCloud.
+
+### Edge cases (UpCloud)
+
+- **The credits run out:** UpCloud disables the servers until the balance is positive. The guide and
+  design say so; `opscrew status` shows the server's state as UpCloud reports it.
+- **A plan name UpCloud doesn't list:** with a token, the catalogue keeps only the plans
+  `GET /1.3/plan` lists, so design never offers one UpCloud would refuse.
+- **Port 25:** an app that sends mail directly gets no connection until support opens the port; the
+  guide says to use a mail service on port 587 or 465.
+- **Several servers with the app's title** (titles are not known to be unique): provision stops and
+  lists them, rather than guessing.
+
+### Requirements (UpCloud)
+
+- **FR-3532**: UpCloud MUST be a built-in cloud server provider, `upcloud`, in its own package
+  (`@opscrew/provider-upcloud`) written for the contract (ADR 0029), added to the built-in list
+  after IONOS Cloud, with no change to the contract.
+- **FR-3533**: The definition MUST offer the five Premium plans of decision 24, from a dated static
+  table of UpCloud's EUR price list (2026-10-24), at the plan's included MaxIOPS disk, priced by the
+  started hour at the monthly price over 672 hours with the monthly price as the cap. With a token,
+  the catalogue MUST keep only the plans UpCloud lists.
+- **FR-3534**: Each server MUST take the shared first boot as a script in `user_data` (`firstBoot`
+  `script`), with the server's own firewall first in it (`firewallCheck` `server`), and UpCloud's
+  firewall MUST be off, so that SecOps and `opscrew secure` check the server's own firewall as on
+  Kamatera.
+- **FR-3535**: Only `UPCLOUD_TOKEN` MUST be read; the agent's environment MUST
+  leave out every `UPCLOUD_` variable, and the token MUST be registered with the redactor.
+- **FR-3536**: An app's servers MUST be found by their titles (`<app>`, `<app>-<name>`, exactly the
+  plan's names when given, #56) and their app label; an `AppServer`'s id is the server's UUID.
+- **FR-3537**: Whole-server snapshots MUST be on-demand backups of the server's disk through the API,
+  awaited by polling, and outlive the server in what OpsCrew says until the live pass shows
+  otherwise.
+- **FR-3538**: When the plan asks for provider backups, the module MUST turn on Simple Backup's week
+  plan (`dailies`), priced at +20% of the plan, and SecOps MUST read it from the planned server.
+
+### Success criteria (UpCloud)
+
+- **SC-3517**: With fakes of UpCloud's API and the engine, interview, design, provision, verify,
+  status, secure, a whole-server snapshot and its restore, and destroy run on an UpCloud app, with
+  no real cloud call in any test.
+- **SC-3518**: For the example apps on every other provider, the generated files are byte-identical
+  before and after UpCloud's tasks, and every existing test passes.
+- **SC-3519**: No output, log, audit entry, generated or committed file of the fake runs holds the
+  token. The live pass checks the same, and its state files and saved plans.
+- **SC-3520**: `pnpm check` passes on UpCloud's pull request, or the pull request says plainly which
+  test failed and why.
+- **SC-3521**: The founder can run UpCloud's live pass from `docs/e2e.md` alone. It costs about €0.024
+  an hour on one `PREMIUM-2xCPU-2GB` and nothing after its destroy except the backups it names.
+
+### Assumptions (UpCloud)
+
+- Prices are EUR, before VAT, from UpCloud's price list of 2026-10-24; payments in other currencies
+  are exchanged to EUR, so EUR is the one currency.
+- Only Premium plans are offered. Starter plans hold at most 50 GB and cost more than Premium where
+  they fit design's 40 GB minimum; Cloud Native plans have no disk or address of their own. Either
+  can come later, if users ask.
+- UpCloud's private SDN networks, floating IPs, load balancers and managed services are out of scope.
+- UpCloud's live pass needs an account and the founder's go-ahead. Until then, everything is built
+  and tested against fakes, and the facts in research R6's "To test live" wait for it.
