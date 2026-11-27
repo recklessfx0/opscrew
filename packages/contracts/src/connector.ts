@@ -11,6 +11,8 @@ export type ProviderId =
   | "ovhcloud"
   /** Kamatera (035): a cloud server provider with no cloud firewall; OpsCrew sets one on the server. */
   | "kamatera"
+  /** UpCloud (035): a cloud server provider with a per-server firewall. */
+  | "upcloud"
   /** A server the user already owns, reached over SSH (no provider API). */
   | "own"
   /**
@@ -118,7 +120,7 @@ export interface ComputeCatalog {
  */
 export type VpsProviderId = Extract<
   ProviderId,
-  "hetzner" | "digitalocean" | "contabo" | "ovhcloud" | "kamatera" | "own"
+  "hetzner" | "digitalocean" | "contabo" | "ovhcloud" | "kamatera" | "upcloud" | "own"
 >;
 
 /** A server OpsCrew created for an app, as the provider reports it. */
