@@ -11,6 +11,8 @@ export type ProviderId =
   | "ovhcloud"
   /** Kamatera (035): a cloud server provider with no cloud firewall; OpsCrew sets one on the server. */
   | "kamatera"
+  /** IONOS Cloud (035): a cloud server provider whose servers each live in a data centre of their own. */
+  | "ionos"
   /** A server the user already owns, reached over SSH (no provider API). */
   | "own"
   /**

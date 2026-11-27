@@ -679,14 +679,15 @@ dependencies or the lockfile. No real secret in any test: `fakeSecret(kind)` and
 ## Phase 7: IONOS Cloud
 
 IONOS Cloud is stacked on Kamatera's branch (`035-ionos`), plan 13. to 15. and decisions 13 to 20.
-No contract change; the id joins the shared lists through the issue below.
+No contract change; the id joins the shared lists through [#63](https://github.com/opscrew-hub/opscrew/issues/63).
 
-- [ ] T3538 (lead; the lists' issue) The package's skeleton, and `ionos` in `ProviderId`
+- [x] T3538 (lead; [#63](https://github.com/opscrew-hub/opscrew/issues/63)) The package's skeleton, and `ionos` in `ProviderId`
   - Accept:
     - `packages/providers/ionos` with `package.json` (`@opscrew/provider-ionos`, the same
       dependencies, scripts and `exports` as `@opscrew/provider-kamatera`), `tsconfig.json`,
       `vitest.config.ts`, an empty `module/`, `src/index.ts` exporting nothing yet, and the lockfile.
-    - `ionos` in `ProviderId` and `VpsProviderId`, so the catalogue and the server API typecheck.
+    - `ionos` in `ProviderId`, so the catalogue and the server API typecheck (`VpsProviderId`
+      waits for T3543, with the schema it must match).
     - `pnpm check` is as green as before.
   - Effort: lead
 
@@ -774,7 +775,7 @@ No contract change; the id joins the shared lists through the issue below.
   - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && OPSCREW_IT=1 npx vitest run --root packages/providers/ionos && pnpm lint`
   - Effort: xhigh
 
-- [ ] T3543 (lead; the lists' issue) `ionos` joins the lists and the registry
+- [ ] T3543 (lead; [#63](https://github.com/opscrew-hub/opscrew/issues/63)) `ionos` joins the lists and the registry
   - Accept: as T3527, for `ionos` after `kamatera`, with `IONOS_TOKEN` in the plugin's credential
     lists, and `IONOS_` among the prefixes the agent's environment never gets (with its test).
   - Effort: lead
