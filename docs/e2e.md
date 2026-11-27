@@ -3798,6 +3798,142 @@ or leaves a `<name>(1)` duplicate (SC-3509); a size change's refusal; the datace
 EU-FR. Whether Kamatera keeps a server's snapshots once it is terminated isn't checked: the pass
 deletes them first, as the guide tells users to.
 
+## IONOS Cloud
+
+`packages/cli/test/live/ionos.test.ts`, with `OPSCREW_E2E_IONOS=1`, runs OpsCrew on IONOS Cloud
+(SC-3514, SC-3515): `examples/flask-sqlite` on one `vcpu-2-4` (2 vCPU, 4 GB, 80 GB Essential disk)
+in `de/fra/1` (Frankfurt 1), on an IONOS Cloud contract of yours.
+
+**It costs money, and needs a business account.** IONOS Cloud sells to businesses only. The pass
+runs on the contributor's own contract, just before the release that ships IONOS Cloud, and the
+founder is asked then (opscrew-hub/opscrew#14). IONOS bills the server by the hour until it is
+deleted (a stopped server still bills its disk and its reserved address): a `vcpu-2-4` with its
+disk costs about €0.04 an hour before any tax. The server's reserved IPv4 address costs €5 per 30
+days while it exists (under €0.007 an hour), and the whole-server snapshot of step 5 €0.04 per GB
+per 30 days (at most 80 GB, so under €0.005 an hour); the test deletes the snapshot after the
+destroy, which deletes the address. A pass takes one to three hours, so it costs under €0.20. The
+prices are in `packages/providers/ionos/src/static-prices.ts` and on
+[IONOS's price page](https://cloud.ionos.com/prices).
+
+The app is named after the run, `e2e-ion-<run id>`, so nothing of an earlier run is ever taken for
+this one's. OpsCrew gets the token as `IONOS_TOKEN`, as a user's run does, and no other provider's
+values. `OPSCREW_E2E_APP` and `OPSCREW_E2E_REGION` are ignored.
+
+### Before the first run (once, in the Data Center Designer)
+
+1. **The contract.** Use a contract for the pass alone, or one that holds nothing else you care
+   about: a token can't be limited, and acts as the user who made it.
+2. **The sub-user.** In [the Data Center Designer](https://dcd.ionos.com/), Management → Users &
+   Groups: create a group with only the "Create Data Center", "Create Snapshot" and "Reserve IP"
+   privileges, and a user in it, not an administrator.
+3. **The token.** Signed in as that user, open the Token Manager and generate a token valid for a
+   day or a week: it is `IONOS_TOKEN`, shown once. Delete it in the Token Manager after the pass.
+4. **The limits.** The contract's resource limits must allow 2 more cores, 4 GB of memory, 80 GB
+   of SSD storage and one more reserved IP. The token check of step 1 prints them.
+
+### The steps
+
+Each step below is one numbered test, so a run reads as "N of 10 steps". Each fact the pass
+settles (research R5) is logged as an `observed:` line; the lead copies them into research R5
+after the run.
+1. **The token check and the interview.** The test runs the connector's token check, which reads
+   the data centres and `GET /contracts`: it must pass, which settles whether a sub-user can read
+   the contract. The example goes to the throwaway repository's `main`, as for
+   [environments](#environments-and-promotion). Then `init --fix`, `analyze --no-ai`, the run's
+   name set in `opscrew/architecture.json`, and `interview --answers` without a provider
+   (`eu-central`, 1,000 to 10,000 users a month, the run's own hostname behind Cloudflare). With
+   only IONOS's token set, the interview must choose IONOS Cloud.
+2. **Design.** The plan must be one `vcpu-2-4` in `de/fra/1`, with no IONOS backups, priced in
+   EUR. Then the pass runs `snapshot offsite off` (it tests IONOS, not the R2 copies, whose key
+   only Cloudflare's dashboard makes) and, for the recovery copy's age key, `secrets folder` and
+   `--key-out` on every provision, as the rotation passes do.
+3. **Provision.** `adapt`'s pull request is merged. The contract must have no data centre, IP
+   block or snapshot of the app yet. Then provision, each plan approved by its hash; the test logs
+   how many seconds it took until the server was ready. Its output must hold no takeover note, and
+   the contract must then have exactly one server, in its own data centre `opscrew-<app>`, with
+   its address recorded by OpsCrew. The IP block `opscrew-<app>` must hold that address alone,
+   which settles that an IP block accepts `de/fra/1` (its location is logged). The test logs the
+   image the alias `ubuntu:24.04` chose for the boot volume. Then, as `deploy` over SSH,
+   `cloud-init status --wait --long` must say `done`: the first boot installs packages, which it
+   can only do if the NIC firewall lets the replies to the server's own traffic back in.
+4. **Deploy, verify and status.** The deploy-setup pull request is merged and its deploy run must
+   succeed. The app must answer on its hostname through Cloudflare; `verify` and `status` must
+   pass. A value is written through the app into its SQLite file.
+5. **A whole-server snapshot.** `snapshot --server` must give its price per GB per month, and
+   `snapshot list --json` must list it as kind `server` of the app's server. The test records its
+   id; if `snapshot --server` fails or times out, it records every snapshot IONOS lists for the
+   server (OpsCrew names them `opscrew-<app>-<server id>-<time>`), so the cleanup deletes them.
+6. **Its restore.** A second value is written. Then `restore --server <id>`, run first without
+   `--approve` and then with `--confirm <app> --approve <hash>`, as in
+   [Snapshots and restores](#snapshots-and-restores); its result must say "and the app answers".
+   OpsCrew restores the boot volume while the server runs, so a refusal here settles that IONOS
+   needs the server stopped first. The contract must still have the same server, OpsCrew's record
+   the same address, the app must read back the first value, and `verify` must pass again.
+7. **Secure and drift.** `secure` must write `SECURITY_REPORT.md` without the findings of a server
+   whose NIC firewall is off or without an SSH key. The test reads the NIC back from IONOS: one
+   NIC, its firewall active and `INGRESS`; every rule one of SSH (TCP 22), HTTP (TCP 80), HTTPS
+   (TCP 443), HTTP/3 (UDP 443) and Ping (ICMP), with at least one SSH, HTTP and HTTPS rule, and no
+   SSH rule open to every address. It logs whether the SSH sources read back with their `/32`.
+   `drift` must then find no difference: a second plan shows no change, whatever form IONOS gives
+   a `/32` source back in.
+8. **A stop and a start.** The test stops the server through IONOS's API, then starts it. The
+   app must answer again with the first value, and the IP block must still hold the same address
+   (a stopped server's dynamic address would go back to IONOS's pool). It logs whether the stop
+   was graceful: whether the server's login records (`last -x shutdown`) gained a clean shutdown.
+9. **Destroy.** `destroy --confirm <app> --no-snapshot`, each plan approved by its hash. The
+   contract must have no server of the app, and Cloudflare nothing of the app. The test then logs
+   how many of the server's snapshots outlived its data centre, deletes each snapshot the run
+   recorded or found through IONOS's API, and lists the contract's data centres, IP blocks and
+   snapshots: none may carry the app's names (`opscrew-<app>`, `opscrew-<app>-…`).
+10. **Nothing leaked** (SC-3515), always run: neither `IONOS_TOKEN` nor any other known secret in
+    any CLI output, the deploy job's log, any audit entry, saved plan, state file, report or
+    Cloudflare record, any commit (every branch) or pull request of the run, as for environments.
+    IONOS's provider reads the token from the environment, so it is in no state file either.
+
+### Cleanup and what stays
+
+The cleanup is the one for environments, after every step and always: `opscrew destroy` if a
+step failed after provision started, then the GitHub environments, deploy secrets and deploy
+pauses, the app's records in Cloudflare, and the repository reset. Then, at IONOS, each snapshot
+the run recorded and has not deleted yet is deleted, each one named in the log. Then a data
+centre, IP block or snapshot of the app still in the contract fails the run, each named.
+
+After a finished pass nothing of the run stays at IONOS: the destroy deletes the data centre
+`opscrew-<app>` (and the server, its disk, its LAN and its firewall rules with it) and the IP block
+`opscrew-<app>`, and the test deletes the snapshots. The contract, the sub-user and its group stay
+for the next run; they cost nothing. Delete the token in the Token Manager.
+
+**If a run was interrupted**, in the Data Center Designer: delete the data centre
+`opscrew-e2e-ion-<run id>`, then the IP block `opscrew-e2e-ion-<run id>` (Network → IP
+Management), then the snapshots `opscrew-e2e-ion-<run id>-…` (Snapshots). In the throwaway
+repository and in Cloudflare, delete what the environments test lists.
+
+| Variable | What it is |
+|---|---|
+| `OPSCREW_E2E_IONOS` | `1` runs this test, just before the release that ships IONOS Cloud, after the founder agrees: it costs up to €0.20. |
+| `IONOS_TOKEN` | The sub-user's token ([above](#before-the-first-run-once-in-the-data-center-designer)). |
+| `IONOS_API_URL` | Optional: another address of IONOS's Cloud API. |
+| `OPSCREW_E2E_GITHUB_REPO`, `OPSCREW_E2E_GITHUB_TOKEN` | The throwaway repository and its token, as for environments. |
+| `OPSCREW_E2E_CLOUDFLARE_TOKEN`, `OPSCREW_E2E_DOMAIN` | As for your own server: the app answers on the run's own hostname in that zone. |
+
+Without them the test is skipped, with a message naming each one it misses. Set
+`OPSCREW_E2E_IONOS=1` only on the command line of this one file, never in `.env.e2e` or an
+exported shell.
+
+```bash
+pnpm --filter opscrew build
+cd packages/cli
+OPSCREW_E2E_IONOS=1 IONOS_TOKEN=… \
+  OPSCREW_E2E_GITHUB_REPO=you/opscrew-e2e OPSCREW_E2E_GITHUB_TOKEN=… \
+  OPSCREW_E2E_CLOUDFLARE_TOKEN=… OPSCREW_E2E_DOMAIN=e2e.example.com \
+  npx vitest run test/live/ionos.test.ts
+```
+
+What this pass doesn't cover (fakes do): moves to and from IONOS, several servers, previews,
+monitoring, rollback, data snapshots, `advise` and `rotate` on IONOS; a create that fails half way
+and leaves a data centre the state doesn't know; a size change's refusal; the locations other than
+`de/fra/1`; a contract billed in USD.
+
 ## A cPanel account
 
 `packages/cli/test/live/cpanel.test.ts`, with `OPSCREW_E2E_CPANEL=1`, runs feature 027 on the
