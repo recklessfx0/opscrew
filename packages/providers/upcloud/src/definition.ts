@@ -59,17 +59,18 @@ function simpleBackupOn(server: PlannedResourceJson): boolean {
 /**
  * SecOps's checks of a plan's UpCloud servers. UpCloud's own firewall is stateless, so the module
  * leaves it off and makes no `upcloud_firewall_rules`: the server's own firewall is the first step
- * of its first boot (as on Kamatera), which SecOps reads from the planned server's `user_data` and
- * `opscrew secure` from the server (`firewallCheck`); `rules` and `attached` find nothing.
+ * of its first boot, a cloud-init boothook before the cloud-config, which SecOps reads from the
+ * planned server's `user_data` and `opscrew secure` from the server (`firewallCheck`); `rules` and
+ * `attached` find nothing.
  */
 const SECOPS: ProviderSecOps = {
   noun: "server",
   firewallCheck: "server",
   rules: () => [],
   attached: () => false,
-  attachedText: `Cloud firewall: none; server firewall: on. ${STATELESS}, so it stays off: ${OPEN_PORTS}. The server's own stateful firewall (nftables) is the first step of its first boot: it drops everything the plan doesn't allow from ${FIREWALL_GAP}, when UpCloud runs the first-boot script.`,
+  attachedText: `Cloud firewall: none; server firewall: on. ${STATELESS}, so it stays off: ${OPEN_PORTS}. The server's own stateful firewall (nftables) is the first step of its first boot: it drops everything the plan doesn't allow from ${FIREWALL_GAP}, when cloud-init runs it, before the rest of the first boot.`,
   unattachedText:
-    "Cloud firewall: none; server firewall: off. UpCloud's own firewall stays off, and the server's first-boot script doesn't set up OpsCrew's firewall, so every port would be reachable from the internet. Run `opscrew provision` again: it writes the server's module with the firewall as the first step.",
+    "Cloud firewall: none; server firewall: off. UpCloud's own firewall stays off, and the server's first boot (its user data) doesn't set up OpsCrew's firewall, so every port would be reachable from the internet. Run `opscrew provision` again: it writes the server's module with the firewall as the first step.",
   keylessText:
     "The server has no SSH key in its login, so the only way in would be a password, which OpsCrew never has UpCloud make. Add the deploy key.",
   // The key goes in the server's login block (`login[0].keys`); the check sees the block.
@@ -210,9 +211,8 @@ export const definition: CloudProviderDefinition = {
     // UpCloud keeps no key object: every server takes the deploy key's text in its login, so the
     // app's servers share no resource, and an extra server gets the text itself as `ssh_key_id`.
     extraShared: { resources: [], sshKeyId: "var.deploy_ssh_public_key" },
-    // UpCloud runs user_data as a script at the first boot (ADR 0029, D12).
-    firstBoot: "script",
-    // No importId: a server imports by its UUID, the AppServer's id, which the default quotes.
+    // No firstBoot: the default cloud-init, whose user data carries the server firewall's step as a
+    // boothook before the cloud-config. No importId: a server imports by its UUID, the AppServer's id, which the default quotes.
   },
   texts: {
     rotate: { deleteToken: `${CONSOLE} (${UPCLOUD_CONTROL_PANEL_URL}, Account → API tokens)` },

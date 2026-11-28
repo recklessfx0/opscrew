@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -13,7 +14,13 @@ import { findExecutable, isRecord, NodeCommandRunner, Redactor } from "@opscrew/
 import { describe, expect, it } from "vitest";
 import { collectProviderModule } from "../../../../scripts/gen-provider-modules";
 import { TOKEN, TOKEN_ENV } from "./__fixtures__/client";
-import { DEPLOY_KEY, firstBootScript, upcloudPlanJson } from "./__fixtures__/plan";
+import {
+  DEPLOY_KEY,
+  MIME_BOUNDARY,
+  mimeParts,
+  upcloudPlanJson,
+  userData,
+} from "./__fixtures__/plan";
 import {
   definition,
   STATIC_PLANS,
@@ -41,6 +48,24 @@ const NAME_RULE =
   "UpCloud needs a server hostname of 1 to 63 letters, digits or dashes that neither starts nor ends with a dash and isn't only digits";
 /** Nothing in a unit test reaches the network. */
 const offline: FetchLike = () => Promise.reject(new Error("no request in this test"));
+
+/** A bash to check the boothook's syntax with, or undefined when none is here. */
+const bash = [
+  // Git for Windows installs its bash off PATH, where a Windows session usually finds it.
+  ...(process.platform === "win32"
+    ? [`${process.env.ProgramFiles ?? "C:\\Program Files"}\\Git\\bin\\bash.exe`]
+    : []),
+  "bash",
+].find((candidate) => spawnSync(candidate, ["-n", "-c", "true"]).status === 0);
+if (bash === undefined) {
+  console.warn("[provider-upcloud] skipping the boothook's syntax check: no bash is here.");
+}
+
+/** What `bash -n` says of `script`: its exit status and its complaints. */
+function bashSyntax(script: string): { status: number | null; stderr: string } {
+  const result = spawnSync(bash ?? "bash", ["-n"], { input: script, encoding: "utf8" });
+  return { status: result.status, stderr: result.stderr };
+}
 
 /** The module's main.tf. */
 function mainTf(): string {
@@ -424,12 +449,15 @@ describe("UpCloud's cloud provider definition", () => {
     expect(previous).toContainEqual(["http_allowed_cidrs", "var.http_allowed_cidrs"]);
   });
 
-  it("uses UpCloud's own Terraform provider, the first boot as a script, and nothing of the connector", () => {
+  it("uses UpCloud's own Terraform provider, the cloud-init first boot, and nothing of the connector", () => {
+    // cloud-init, the default first boot: UpCloud's templates run it with UpCloud's own
+    // datasource, so a script that seeds cloud-init again couldn't apply the cloud-config there.
+    expect(definition.terraform.firstBoot).toBeUndefined();
+    expect(definition.texts.secops.firewallCheck).toBe("server");
     expect(definition.terraform).toMatchObject({
       provider: { name: "upcloud", source: "UpCloudLtd/upcloud", version: "~> 5.49" },
       serverResourceType: "upcloud_server",
       firewallResourceType: "upcloud_firewall_rules",
-      firstBoot: "script",
       connectorFirewall: false,
       connectorBackups: false,
       connectorRemoval: false,
@@ -530,27 +558,23 @@ describe("UpCloud's cloud provider definition", () => {
     ]);
   });
 
-  it("puts the server's own firewall first in the first-boot script, from the module's networks", () => {
-    const server = serverBlock();
-    const script = server.indexOf(
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
-      '  user_data = templatefile("${path.module}/first-boot.sh.tftpl", {\n',
-    );
-    const firewall = server.indexOf(
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
-      '    server_firewall = templatefile("${path.module}/server-firewall.sh.tftpl", {\n',
-    );
-    expect(script).toBeGreaterThan(0);
-    expect(firewall).toBeGreaterThan(script);
-    expect(firewall).toBeLessThan(server.indexOf("    cloud_config_b64 = "));
+  it("renders the server's own firewall from the module's networks, and the cloud-config as every cloud-init provider does", () => {
+    const locals = block("locals {");
     for (const line of [
-      '      ssh_sources    = join(" ", var.ssh_allowed_cidrs)',
-      '      web_sources    = var.web ? join(" ", var.http_allowed_cidrs) : ""',
-      '      wireguard_port = var.wireguard_port == null ? "" : tostring(var.wireguard_port)',
       // biome-ignore lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
-      '    cloud_config_b64 = base64encode(templatefile("${path.module}/cloud-init.yaml.tftpl", {',
+      '  server_firewall = templatefile("${path.module}/server-firewall.sh.tftpl", {',
+      '    ssh_sources    = join(" ", var.ssh_allowed_cidrs)',
+      '    web_sources    = var.web ? join(" ", var.http_allowed_cidrs) : ""',
+      '    wireguard_port = var.wireguard_port == null ? "" : tostring(var.wireguard_port)',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
+      '  cloud_config = templatefile("${path.module}/cloud-init.yaml.tftpl", {',
+      "    ssh_public_key  = var.ssh_public_key",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
+      '    check_key_entry = var.check_key_line == "" ? "" : "\\n      - ${jsonencode(var.check_key_line)}"',
+      "    web             = var.web",
+      `  boundary = "${MIME_BOUNDARY}"`,
     ]) {
-      expect(server, line).toContain(`${line}\n`);
+      expect(locals, line).toContain(`${line}\n`);
     }
     const variables = definition.terraform.module.files["variables.tf"] ?? "";
     for (const name of ["ssh_allowed_cidrs", "http_allowed_cidrs"]) {
@@ -558,6 +582,103 @@ describe("UpCloud's cloud provider definition", () => {
       expect(variable, name).toContain("  type        = list(string)\n");
       expect(variable, name).toContain('  default     = ["0.0.0.0/0", "::/0"]\n');
     }
+  });
+
+  it("gives the server a MIME user data: the server firewall's boothook, then the cloud-config", () => {
+    const server = serverBlock();
+    const start = server.indexOf("  user_data = <<-EOT\n");
+    expect(start).toBeGreaterThan(0);
+    const heredoc = server.slice(start, server.indexOf("\n  EOT\n", start) + "\n  EOT".length);
+    // biome-ignore-start lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
+    const lines = [
+      'Content-Type: multipart/mixed; boundary="${local.boundary}"',
+      "MIME-Version: 1.0",
+      "",
+      "--${local.boundary}",
+      'Content-Type: text/cloud-boothook; charset="us-ascii"',
+      "",
+      "#!/bin/bash",
+      "set -euo pipefail",
+      "exec >>/var/log/opscrew-first-boot.log 2>&1",
+      "if [ -e /etc/opscrew/server-firewall.done ]; then exit 0; fi",
+      "${local.server_firewall}",
+      "install -m 0600 /dev/null /etc/opscrew/server-firewall.done",
+      "date -Is >/etc/opscrew/server-firewall.done",
+      "--${local.boundary}",
+      'Content-Type: text/cloud-config; charset="us-ascii"',
+      "",
+      "${local.cloud_config}",
+      "--${local.boundary}--",
+    ];
+    expect(heredoc).toBe(
+      [
+        "  user_data = <<-EOT",
+        ...lines.map((line) => (line === "" ? "" : `    ${line}`)),
+        "  EOT",
+      ].join("\n"),
+    );
+    // The fixture's user data is the heredoc as the engine renders it (`<<-` strips the indent and
+    // inserts each value as it is), so the security checks below read what the module plans.
+    const rendered = `${lines
+      .join("\n")
+      .replaceAll("${local.boundary}", MIME_BOUNDARY)
+      .replaceAll("${local.server_firewall}", "")
+      .replaceAll("${local.cloud_config}", "#cloud-config\n")}\n`;
+    // biome-ignore-end lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
+    expect(userData({ firewallStep: false })).toBe(rendered);
+    // No startup script: UpCloud's cloud-init reads the user data itself.
+    expect(mainTf()).not.toContain("first-boot.sh.tftpl");
+  });
+
+  it("puts the boothook before the cloud-config, guarded so a step that succeeded runs once", () => {
+    const parts = mimeParts(userData({ cloudConfig: "#cloud-config\nusers: []\n" }));
+    expect(parts.map((part) => part.headers["content-type"])).toEqual([
+      'text/cloud-boothook; charset="us-ascii"',
+      'text/cloud-config; charset="us-ascii"',
+    ]);
+    const [boothook, cloudConfig] = parts.map((part) => part.body);
+    expect(cloudConfig).toBe("#cloud-config\nusers: []\n");
+    const script = boothook ?? "";
+    expect(script.startsWith("#!/bin/bash\nset -euo pipefail\n")).toBe(true);
+    const at = (text: string) => script.indexOf(text);
+    const guard = at("if [ -e /etc/opscrew/server-firewall.done ]; then exit 0; fi\n");
+    expect(guard).toBeGreaterThan(at("exec >>/var/log/opscrew-first-boot.log 2>&1\n"));
+    expect(at(SERVER_FIREWALL_MARKER)).toBeGreaterThan(guard);
+    expect(at("\nopscrew_server_firewall\n")).toBeGreaterThan(at(SERVER_FIREWALL_MARKER));
+  });
+
+  it("writes the boothook's marker, root's alone, only after the step returned, and lets no failure pass", () => {
+    const [boothook] = mimeParts(userData());
+    const script = boothook?.body ?? "";
+    // The step's call is the fragment's last line; the marker's two lines follow it, and nothing
+    // else writes the marker. A failed step never returns: set -e stops the boothook, and the
+    // step's own trap powers the server off.
+    expect(
+      script.endsWith(
+        [
+          "\nopscrew_server_firewall",
+          "",
+          "install -m 0600 /dev/null /etc/opscrew/server-firewall.done",
+          "date -Is >/etc/opscrew/server-firewall.done",
+        ].join("\n"),
+      ),
+    ).toBe(true);
+    const lastCall = script.lastIndexOf("\nopscrew_server_firewall\n");
+    const writes = [...script.matchAll(/^(?!if \[ -e )[^#\n]*server-firewall\.done.*$/gm)];
+    expect(writes.map((write) => write[0])).toEqual([
+      "install -m 0600 /dev/null /etc/opscrew/server-firewall.done",
+      "date -Is >/etc/opscrew/server-firewall.done",
+    ]);
+    for (const write of writes) expect(write.index, write[0]).toBeGreaterThan(lastCall);
+    // Nothing hides the step's status: no `|| true`, no `|| :`, and errexit stays on.
+    expect(script).not.toMatch(/\|\|\s*(?:true|:)(?:\s|$)/);
+    expect(script).not.toMatch(/^\s*set \+e/m);
+    expect(script).toMatch(/^set -euo pipefail$/m);
+  });
+
+  it.skipIf(bash === undefined)("has a boothook bash accepts", () => {
+    const [boothook] = mimeParts(userData({ wireguardPort: 51820 }));
+    expect(bashSyntax(boothook?.body ?? "")).toEqual({ status: 0, stderr: "" });
   });
 
   it("turns on Simple Backup's week plan only when the plan asks for backups", () => {
@@ -616,6 +737,13 @@ describe("UpCloud's cloud provider definition", () => {
       "variables.tf",
       "versions.tf",
     ]);
+    // The files OpsCrew adds beside it, which it reads: the cloud-config and the server firewall's
+    // step, and no first-boot script.
+    const added = [...mainTf().matchAll(/"\$\{path\.module\}\/([^"]+)"/g)].map(([, file]) => file);
+    expect([...new Set(added)].sort()).toEqual([
+      "cloud-init.yaml.tftpl",
+      "server-firewall.sh.tftpl",
+    ]);
   });
 });
 
@@ -660,8 +788,8 @@ const SERVER_FIREWALL_DROP = "type filter hook input priority filter; policy dro
 
 /**
  * What SecOps's plan checks find for each UpCloud server of `planJson` (`@opscrew/secops`'s
- * `providerPolicies` with `firewallCheck` `server`): the attribute whose script holds the server
- * firewall's step and the networks it lets in, whether the server has its SSH key (the "uses SSH
+ * `providerPolicies` with `firewallCheck` `server`): the attribute whose text holds the server
+ * firewall's step (any string with its marker) and the networks it lets in, whether the server has its SSH key (the "uses SSH
  * keys" check, reading the definition's `sshKeyAttribute`), whether Simple Backup is on (the
  * definition's `backups`), and whether SSH is open to everyone.
  */
@@ -706,7 +834,7 @@ function secopsFindings(planJson: unknown) {
 describe("UpCloud's security checks", () => {
   const { secops } = definition.texts;
 
-  it("read the server's own firewall from its first-boot script, since UpCloud's stays off", () => {
+  it("read the server's own firewall from its user data's boothook, since UpCloud's stays off", () => {
     expect(secops.firewallCheck).toBe("server");
     expect(secops.noun).toBe("server");
     // No cloud firewall resource is read: the module never makes one.
@@ -735,16 +863,18 @@ describe("UpCloud's security checks", () => {
     expect(secops.attachedText).toMatch(/^Cloud firewall: none; server firewall: on\. /);
   });
 
-  it("find the firewall's step first in the script, before anything else of the first boot", () => {
-    const script = firstBootScript();
-    const firewall = script.indexOf(SERVER_FIREWALL_MARKER);
-    expect(script.startsWith("#!/bin/bash\n")).toBe(true);
-    expect(firewall).toBeGreaterThan(script.indexOf("first boot already done"));
-    expect(firewall).toBeLessThan(script.indexOf("export DEBIAN_FRONTEND"));
-    expect(script).toContain("\nopscrew_server_firewall\n");
+  it("find the firewall's step in the user data's first part, before the cloud-config", () => {
+    const user = userData({ cloudConfig: "#cloud-config\npackages: [ufw]\n" });
+    expect(user.indexOf(SERVER_FIREWALL_MARKER)).toBeGreaterThan(
+      user.indexOf("Content-Type: text/cloud-boothook"),
+    );
+    expect(user.indexOf(SERVER_FIREWALL_MARKER)).toBeLessThan(
+      user.indexOf("Content-Type: text/cloud-config"),
+    );
+    expect(user.indexOf("\nopscrew_server_firewall\n")).toBeLessThan(user.indexOf("#cloud-config"));
   });
 
-  it("find no firewall in a script without the step, and say what to do", () => {
+  it("find no firewall in a user data without the step, and say what to do", () => {
     const [server] = secopsFindings(upcloudPlanJson({ firewallStep: false }));
     expect(server?.firewall).toBeUndefined();
     expect(secops.unattachedText).toMatch(/^Cloud firewall: none; server firewall: off\. /);
@@ -803,7 +933,7 @@ const NETWORK_ERROR =
   /dial tcp|no such host|i\/o timeout|connection (?:refused|reset)|network is unreachable|TLS handshake|context deadline exceeded|could not connect/i;
 /** The engine's log when the provider's plugin refuses the engine's local TLS certificate. */
 const PLUGIN_TLS_ERROR = /authentication handshake failed: .*x509/;
-/** OpsCrew's first-boot files, which iac-templates adds to a script provider's module. */
+/** OpsCrew's first-boot files, which iac-templates adds to the module: the cloud-config and the firewall's step. */
 const SHARED = join(packageDir, "../../iac-templates/shared");
 const MODULE_DIR = "modules/upcloud-instance";
 
@@ -894,6 +1024,19 @@ function rootModule(): string {
     ),
     "  }",
     "}",
+    "",
+    // The shared cloud-config as every cloud-init provider's module renders it (Hetzner's), on a
+    // server that serves the web and on one that doesn't: what the user data's second part holds.
+    ...[true, false].flatMap((web) => [
+      `output "cloud_config_${web ? "web" : "no_web"}" {`,
+      `  value = templatefile("./${MODULE_DIR}/cloud-init.yaml.tftpl", {`,
+      "    ssh_public_key  = var.deploy_ssh_public_key",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: HCL interpolation, not JavaScript.
+      '    check_key_entry = var.check_key_line == "" ? "" : "\\n      - ${jsonencode(var.check_key_line)}"',
+      `    web             = ${web}`,
+      "  })",
+      "}",
+    ]),
   ].join("\n");
 }
 
@@ -989,7 +1132,6 @@ describe.skipIf(!runIt)("UpCloud's module validates and plans (integration)", ()
         const files = {
           ...definition.terraform.module.files,
           "cloud-init.yaml.tftpl": await readFile(join(SHARED, "cloud-init.yaml.tftpl"), "utf8"),
-          "first-boot.sh.tftpl": await readFile(join(SHARED, "first-boot.sh.tftpl"), "utf8"),
           "server-firewall.sh.tftpl": await readFile(
             join(SHARED, "server-firewall.sh.tftpl"),
             "utf8",
@@ -1051,6 +1193,17 @@ describe.skipIf(!runIt)("UpCloud's module validates and plans (integration)", ()
           const show = await run(["show", "-json", "-no-color", "tf.plan"]);
           expect(show.exitCode, show.stderr).toBe(0);
           const planJson: unknown = JSON.parse(show.stdout);
+          /** The root's two renders of the shared cloud-config, by `web` and `no_web`. */
+          const outputs = Object.fromEntries(
+            ["web", "no_web"].map((key) => {
+              const all =
+                isRecord(planJson) && isRecord(planJson.planned_values)
+                  ? planJson.planned_values.outputs
+                  : undefined;
+              const output = isRecord(all) ? all[`cloud_config_${key}`] : undefined;
+              return [key, isRecord(output) ? output.value : undefined];
+            }),
+          );
 
           const resources = plannedResources(planJson);
           // Only the servers: no upcloud_firewall_rules, no key object.
@@ -1101,18 +1254,33 @@ describe.skipIf(!runIt)("UpCloud's module validates and plans (integration)", ()
               sshOpen: false,
               firewalls: 0,
             });
-            // The script carries the shared cloud-config, base64-encoded, with the key and, on a
-            // server that serves no web, no web ports; the server's own firewall comes first.
-            const script = String(server?.values.user_data);
-            expect(script.startsWith("#!/bin/bash\n"), module).toBe(true);
-            const encoded = /printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d/.exec(script)?.[1] ?? "";
-            const cloudConfig = Buffer.from(encoded, "base64").toString("utf8");
+            // The user data is the fixture's, byte for byte: the boothook with the server's own
+            // firewall from the root's networks, then the shared cloud-config as every cloud-init
+            // provider renders it, with the key and, on a server that serves no web, no web ports.
+            const user = String(server?.values.user_data);
+            const cloudConfig = String(outputs[extra === undefined ? "web" : "no_web"]);
+            expect(user, module).toBe(
+              userData({
+                sshCidrs: SSH_CIDRS,
+                httpCidrs: extra === undefined ? HTTP_CIDRS : [],
+                wireguardPort: extra === undefined ? 51820 : 51821,
+                cloudConfig,
+              }),
+            );
+            const parts = mimeParts(user);
+            expect(parts.map((part) => part.headers["content-type"]?.split(";")[0])).toEqual([
+              "text/cloud-boothook",
+              "text/cloud-config",
+            ]);
+            expect(parts[1]?.body, module).toBe(cloudConfig);
             expect(cloudConfig.startsWith("#cloud-config\n"), module).toBe(true);
             expect(cloudConfig).toContain(`      - ${DEPLOY_KEY}\n`);
             expect(cloudConfig.includes("[ufw, allow, 80/tcp]"), module).toBe(extra === undefined);
-            const firewall = script.indexOf(SERVER_FIREWALL_MARKER);
-            expect(firewall, module).toBeGreaterThan(script.indexOf("first boot already done"));
-            expect(firewall, module).toBeLessThan(script.indexOf("export DEBIAN_FRONTEND"));
+            const boothook = parts[0]?.body ?? "";
+            expect(boothook).toContain(SERVER_FIREWALL_MARKER);
+            if (bash !== undefined) {
+              expect(bashSyntax(boothook), module).toEqual({ status: 0, stderr: "" });
+            }
           }
           // The provider read the account, the plans and the zones, and nothing else, with the token.
           expect(fake.requests.length).toBeGreaterThan(0);
