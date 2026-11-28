@@ -779,7 +779,7 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Verify: `pnpm turbo run typecheck --filter=@opscrew/provider-ionos && OPSCREW_IT=1 npx vitest run --root packages/providers/ionos && pnpm lint`
   - Effort: xhigh
 
-- [ ] T3543 (lead; [#63](https://github.com/opscrew-hub/opscrew/issues/63)) `ionos` joins the lists and the registry
+- [x] T3543 (lead; [#63](https://github.com/opscrew-hub/opscrew/issues/63)) `ionos` joins the lists and the registry
   - Accept: as T3527, for `ionos` after `kamatera`, with `IONOS_TOKEN` in the plugin's credential
     lists (`plugin/.codex-plugin/plugin.json` `env_vars` and the TOML in
     `docs/guide/mcp-clients.md`), and `IONOS_` among the prefixes the agent's environment never gets
@@ -794,7 +794,7 @@ No contract change; the id joins the shared lists through [#63](https://github.c
   - Accept: spec US13 1. and 3.
   - Effort: medium
 
-- [ ] T3545 [P] [US13] The live test and its steps
+- [x] T3545 [P] [US13] The live test and its steps
   - Owns: `packages/cli/test/live/ionos.test.ts`, IONOS's section of `docs/e2e.md`
   - Reads: `packages/cli/test/live/kamatera.test.ts`; plan 15.
   - Depends: T3542

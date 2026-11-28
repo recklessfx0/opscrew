@@ -313,9 +313,10 @@ describe("the provider catalogue", () => {
 
   it("links plain sign-up pages, never one with a referral or affiliate id", async () => {
     const { providers } = await providerCatalogue("1.2.3");
-    // IONOS names none: it sells to businesses.
-    for (const provider of providers.filter(({ id }) => id !== "ionos")) {
-      const url = new URL(provider.signupUrl ?? "");
+    // A provider that names no sign-up page (IONOS Cloud, which sells to businesses) has none to check.
+    for (const provider of providers) {
+      if (provider.signupUrl === undefined) continue;
+      const url = new URL(provider.signupUrl);
       expect(url.protocol, provider.id).toBe("https:");
       expect(url.search, provider.id).toBe("");
       expect(url.hash, provider.id).toBe("");
