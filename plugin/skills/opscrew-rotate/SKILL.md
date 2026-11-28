@@ -52,12 +52,13 @@ once no data encrypted with it remains, after the user types the app's name), `d
 `monitoring`, `portainer`, `beszel`, and `recovery-key` (`--key-out <file>` for the new age key;
 never read that file).
 
-**The user's own tokens** (`hetzner`, `digitalocean`, `contabo`, `ovhcloud`, `kamatera`, `cloudflare`,
+**The user's own tokens** (`hetzner`, `digitalocean`, `contabo`, `ovhcloud`, `kamatera`, `upcloud`, `cloudflare`,
 `github`, `cloudflare-deploy`, `ghcr`, `ntfy`): OpsCrew never makes them. The user makes the new
 token at the provider and sets it in its variable (Contabo's are a set: all four `CNTB_OAUTH2_*`
 values; on OVHcloud a new service account, added to the IAM policy on the Public Cloud project,
 in `OVH_CLIENT_ID` and `OVH_CLIENT_SECRET`; on Kamatera a new API key in
-`KAMATERA_API_CLIENT_ID` and `KAMATERA_API_SECRET`), then runs `npx opscrew rotate <name>`. OpsCrew
+`KAMATERA_API_CLIENT_ID` and `KAMATERA_API_SECRET`; on UpCloud a new API token, made under the
+same sub-account, in `UPCLOUD_TOKEN`), then runs `npx opscrew rotate <name>`. OpsCrew
 checks it, replaces every copy it made and names the page where the user deletes the old one.
 
 After a rotation OpsCrew records its date in `opscrew/credentials.yaml` (names and dates only) and

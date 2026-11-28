@@ -103,6 +103,8 @@ steps you run:
   groups, SSH keys and snapshots in your Public Cloud project, and live prices.
 - **Kamatera** (cloudcli.cloudwm.com, and console.kamatera.com for its public price list): servers
   and snapshots, and live prices.
+- **UpCloud** (api.upcloud.com): servers and their backups (whole-server snapshots), the plans your
+  account may use, and your account's credits and limits. Its prices come from a dated list.
 - **Cloudflare:** DNS records, TLS settings, rules and Workers; DNS-over-HTTPS lookups
   (cloudflare-dns.com) when it checks a site.
 - **Porkbun, Namecheap and GoDaddy**, only in the `domain` steps: availability, prices, purchases

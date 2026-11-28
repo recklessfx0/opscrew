@@ -10,6 +10,7 @@ an app yet.
 - [Deploy to Contabo](contabo.md)
 - [Deploy to OVHcloud](ovhcloud.md)
 - [Deploy to Kamatera](kamatera.md)
+- [Deploy to UpCloud](upcloud.md)
 - [Deploy to a server you already have](own-server.md)
 - [Host your app at home](home-hosting.md)
 - [Deploy to a Portainer you already run](portainer-target.md)

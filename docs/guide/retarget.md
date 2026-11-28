@@ -1,7 +1,7 @@
 # Moving your app somewhere else: `opscrew retarget`
 
 `opscrew retarget` moves a live app, with its data, to another place: [Hetzner Cloud](hetzner.md), [DigitalOcean](digitalocean.md), [Contabo](contabo.md),
-[OVHcloud](ovhcloud.md), [Kamatera](kamatera.md), [a server you already have](own-server.md) or [a Portainer you already run](portainer-target.md),
+[OVHcloud](ovhcloud.md), [Kamatera](kamatera.md), [UpCloud](upcloud.md), [a server you already have](own-server.md) or [a Portainer you already run](portainer-target.md),
 in any direction. That includes moving from one server of yours to another. A site moves between
 [Cloudflare's hosting](cloudflare-hosting.md) and [GitHub Pages](github-pages.md).
 
@@ -17,7 +17,7 @@ npx opscrew retarget --abort             # before the switch: back to the old si
 
 | `--to` | Moves the app to |
 |---|---|
-| `hetzner`, `digitalocean`, `contabo`, `ovhcloud`, `kamatera` | A new server at that cloud provider |
+| `hetzner`, `digitalocean`, `contabo`, `ovhcloud`, `kamatera`, `upcloud` | A new server at that cloud provider |
 | `own` | A server you already have (OpsCrew asks how to reach it), or [another app's server](#moving-onto-another-apps-server) |
 | `portainer` | An environment in the Portainer you run (OpsCrew asks for it) |
 | `cloudflare-workers`, `github-pages` | The other site host, for a site |
@@ -38,6 +38,7 @@ Cloudflare setup to another Cloudflare account instead, see
   the four `OVH_*` values for OVHcloud, whose region must be activated in your Public Cloud project
   first (see [Before you start](ovhcloud.md#before-you-start)), `KAMATERA_API_CLIENT_ID` and
   `KAMATERA_API_SECRET` for Kamatera (see [The API key](kamatera.md#the-api-key)),
+  `UPCLOUD_TOKEN` for UpCloud (see [The token](upcloud.md#the-token)),
   `PORTAINER_API_KEY` for Portainer, plus your GitHub token, and `CLOUDFLARE_API_TOKEN` when your
   domain's DNS is on Cloudflare. A missing or rejected token stops the move before anything
   changes. In Portainer, use the token of the user who deployed the app's stacks (OpsCrew's own
@@ -58,7 +59,9 @@ Cloudflare setup to another Cloudflare account instead, see
   none. A Contabo server is
   bought for at least a month, and one that `--finish` removes is billed to the end of its term
   (see [Removing the app](contabo.md#removing-the-app)). An OVHcloud server is billed by the hour
-  until `--finish` deletes it, and a Kamatera server until `--finish` terminates it, stopped or not.
+  until `--finish` deletes it, a Kamatera server until `--finish` terminates it, stopped or not,
+  and an UpCloud server, paid from its prepaid credits, until `--finish` deletes it, stopped or
+  not.
 - **No other app on a server the move deletes:** a move off a server OpsCrew created ends by
   deleting it, so OpsCrew refuses it while another app runs there. An app that runs on another
   app's server can move off it, and an app can move onto another app's server (see

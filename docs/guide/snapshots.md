@@ -288,7 +288,7 @@ the copy's files and any copy left.
 ## Whole-server snapshots
 
 On a server OpsCrew created at [Hetzner Cloud](hetzner.md),
-[DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md) or [Kamatera](kamatera.md), the provider can also
+[DigitalOcean](digitalocean.md), [Contabo](contabo.md), [OVHcloud](ovhcloud.md), [Kamatera](kamatera.md) or [UpCloud](upcloud.md), the provider can also
 snapshot the whole disk:
 
 ```bash
@@ -325,6 +325,10 @@ npx opscrew restore --server <id>                  # rebuild the server from it
   server: delete the ones you don't want before `opscrew destroy` terminates the server, since
   Kamatera doesn't say whether it keeps them after (see
   [Deploy to Kamatera](kamatera.md#snapshots)).
+- **At UpCloud,** a whole-server snapshot is an on-demand backup of the server's disk, €0.056 per
+  GB a month. It outlives the server: OpsCrew deletes none when it removes the server, and each
+  bills until you delete it (see [Deploy to UpCloud](upcloud.md#snapshots)). A restore stops the
+  server first.
 - **DigitalOcean's token** needs two more scopes, `snapshot:delete` and `droplet:admin`, only to
   delete or restore whole-server snapshots. Without them, OpsCrew says so.
 
