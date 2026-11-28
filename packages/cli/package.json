@@ -96,6 +96,7 @@
     "@opscrew/provider-hetzner": "workspace:*",
     "@opscrew/provider-kamatera": "workspace:*",
     "@opscrew/provider-ovhcloud": "workspace:*",
+    "@opscrew/provider-upcloud": "workspace:*",
     "@opscrew/providers": "workspace:*",
     "@opscrew/runtime-claude": "workspace:*",
     "@opscrew/runtime-openai": "workspace:*",

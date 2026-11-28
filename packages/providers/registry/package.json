@@ -21,6 +21,7 @@
     "@opscrew/provider-hetzner": "workspace:*",
     "@opscrew/provider-kamatera": "workspace:*",
     "@opscrew/provider-ovhcloud": "workspace:*",
+    "@opscrew/provider-upcloud": "workspace:*",
     "zod": "^4.6.5"
   }
 }

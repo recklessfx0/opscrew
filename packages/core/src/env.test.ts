@@ -75,6 +75,8 @@ describe("sanitizeAgentEnv", () => {
     "KAMATERA_API_CLIENT_ID",
     "KAMATERA_API_URL",
     "CLOUDCLI_APICLIENTID",
+    // UpCloud's user name (a token is removed anyway), which its Terraform provider also reads.
+    "UPCLOUD_USERNAME",
     "ARM_CLIENT_ID",
     "ARM_SUBSCRIPTION_ID",
     "AZURE_CLIENT_ID",

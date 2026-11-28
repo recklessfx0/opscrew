@@ -222,6 +222,9 @@ importers:
       '@opscrew/provider-ovhcloud':
         specifier: workspace:*
         version: link:../providers/ovhcloud
+      '@opscrew/provider-upcloud':
+        specifier: workspace:*
+        version: link:../providers/upcloud
       '@opscrew/providers':
         specifier: workspace:*
         version: link:../providers/registry
@@ -626,6 +629,9 @@ importers:
       '@opscrew/provider-ovhcloud':
         specifier: workspace:*
         version: link:../ovhcloud
+      '@opscrew/provider-upcloud':
+        specifier: workspace:*
+        version: link:../upcloud
       zod:
         specifier: ^4.6.5
         version: 4.6.5

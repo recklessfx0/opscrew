@@ -2917,6 +2917,8 @@ export const DEFAULT_IMAGES: Readonly<Record<CloudProvider, string>> = {
   ovhcloud: "Ubuntu 24.04",
   // Kamatera's module looks its image up by this name (os and code from its definition).
   kamatera: "Ubuntu 24.04",
+  // UpCloud's module maps this name to its template, "Ubuntu Server 24.04 LTS (Noble Numbat)".
+  upcloud: "Ubuntu 24.04",
 };
 
 /**

@@ -9,15 +9,17 @@ import { definition as digitalocean } from "@opscrew/provider-digitalocean";
 import { definition as hetzner } from "@opscrew/provider-hetzner";
 import { definition as kamatera } from "@opscrew/provider-kamatera";
 import { definition as ovhcloud } from "@opscrew/provider-ovhcloud";
+import { definition as upcloud } from "@opscrew/provider-upcloud";
 import { validateCloudProvider } from "./validate";
 
-/** The built-in cloud server providers, in order: Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera. */
+/** The built-in cloud server providers, in order: Hetzner, DigitalOcean, Contabo, OVHcloud, Kamatera, UpCloud. */
 export const CLOUD_PROVIDERS: readonly CloudProviderDefinition[] = [
   hetzner,
   digitalocean,
   contabo,
   ovhcloud,
   kamatera,
+  upcloud,
 ].map(validateCloudProvider);
 
 /**

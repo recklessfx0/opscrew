@@ -618,7 +618,7 @@ describe("DeployPlan target on a server the user owns", () => {
       shares?:
         | {
             app: string;
-            provider: "hetzner" | "digitalocean" | "contabo" | "ovhcloud" | "kamatera";
+            provider: "hetzner" | "digitalocean" | "contabo" | "ovhcloud" | "kamatera" | "upcloud";
           }
         | undefined;
       edge: "caddy" | "nginx" | "openlitespeed";

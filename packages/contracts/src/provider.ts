@@ -306,9 +306,11 @@ export interface ProviderSecOps {
   /**
    * Where the server's firewall is (issue #13): `cloud` (the default) is the provider's firewall
    * in the plan, read with {@link rules} and {@link attached}. `server` is the server's own
-   * nftables firewall, which a provider with no cloud firewall and a startup-script first boot
-   * (`ProviderTerraform.firstBoot` `script`, Kamatera) gets as the first step of that boot: SecOps
-   * reads it from the planned server's first-boot script, and `opscrew secure` from the server.
+   * nftables firewall, which a provider with no usable cloud firewall gets as the first step of its
+   * first boot: of its startup script (`ProviderTerraform.firstBoot` `script`, Kamatera), or a
+   * boothook before the cloud-config (UpCloud, whose cloud firewall is stateless, #69). SecOps
+   * reads it from the planned server's first-boot user data or script, and `opscrew secure` from
+   * the server.
    */
   firewallCheck?: "cloud" | "server";
   /** The firewall's inbound rules. */

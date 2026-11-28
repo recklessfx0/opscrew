@@ -314,7 +314,7 @@
           "properties": {
             "provider": {
               "type": "string",
-              "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera"]
+              "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera", "upcloud"]
             },
             "mode": {
               "type": "string",
@@ -382,7 +382,7 @@
                 },
                 "provider": {
                   "type": "string",
-                  "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera"]
+                  "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera", "upcloud"]
                 }
               },
               "required": ["app", "provider"],
@@ -791,7 +791,14 @@
                 "properties": {
                   "provider": {
                     "type": "string",
-                    "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera"]
+                    "enum": [
+                      "hetzner",
+                      "digitalocean",
+                      "contabo",
+                      "ovhcloud",
+                      "kamatera",
+                      "upcloud"
+                    ]
                   },
                   "mode": {
                     "type": "string",
@@ -2701,7 +2708,14 @@
                   "properties": {
                     "provider": {
                       "type": "string",
-                      "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera"]
+                      "enum": [
+                        "hetzner",
+                        "digitalocean",
+                        "contabo",
+                        "ovhcloud",
+                        "kamatera",
+                        "upcloud"
+                      ]
                     },
                     "mode": {
                       "type": "string",
@@ -2769,7 +2783,14 @@
                         },
                         "provider": {
                           "type": "string",
-                          "enum": ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera"]
+                          "enum": [
+                            "hetzner",
+                            "digitalocean",
+                            "contabo",
+                            "ovhcloud",
+                            "kamatera",
+                            "upcloud"
+                          ]
                         }
                       },
                       "required": ["app", "provider"],

@@ -27,6 +27,7 @@ export const FAKE_SECRET_KINDS = [
   "porkbun-secret-key",
   "namecheap-api-key",
   "godaddy-token",
+  "upcloud-token",
   "generic-password",
 ] as const;
 export type FakeSecretKind = (typeof FAKE_SECRET_KINDS)[number];
@@ -37,6 +38,8 @@ const BASE64 = `${ALNUM}+/`;
 const BASE64URL = `${ALNUM}-_`;
 const DIGITS = "0123456789";
 const HEX = "0123456789abcdef";
+/** Crockford's base32, upper case: no I, L, O or U. */
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** Deterministic pseudo-random string that starts with `FAKE` when the alphabet allows it. */
 function filler(seed: string, length: number, alphabet: string = ALNUM): string {
@@ -122,6 +125,8 @@ export function fakeSecret(kind: FakeSecretKind, seed = "opscrew"): string {
       return filler(s, 32, HEX);
     case "godaddy-token":
       return `gd_pat_${filler(s, 48)}`;
+    case "upcloud-token":
+      return `ucat_${filler(s, 26, CROCKFORD)}`;
     case "generic-password":
       return `FakeP4ss-${filler(s, 16)}`;
   }
