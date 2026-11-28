@@ -74,7 +74,7 @@ describe("opscrew_placement_estimate", () => {
     expect(tool?.inputSchema.required).toEqual(["service", "provider"]);
     const { provider } = tool?.inputSchema.properties ?? {};
     expect(provider).toMatchObject({
-      enum: expect.arrayContaining(["contabo", "ovhcloud", "kamatera"]),
+      enum: expect.arrayContaining(["contabo", "ovhcloud", "kamatera", "ionos"]),
     });
   });
 

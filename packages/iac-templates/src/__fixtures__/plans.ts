@@ -96,6 +96,14 @@ const TARGETS = {
     currency: "USD",
     pricesIncludeVat: false,
   },
+  ionos: {
+    location: "de/fra/1",
+    serverType: "vcpu-2-4",
+    image: DEFAULT_IMAGES.ionos,
+    amount: 31.67,
+    currency: "EUR",
+    pricesIncludeVat: false,
+  },
 } as const satisfies Record<CloudProvider, unknown>;
 
 /** The services design writes for an app on PostgreSQL (`db`) and one on Redis (`cache`). */

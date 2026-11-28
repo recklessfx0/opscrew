@@ -336,6 +336,16 @@ const FAKE_SERVERS: Record<CloudProvider, { server: AppServer; snapshotId: strin
     server: { id: "shop", name: "shop", status: "on", nameOnly: true },
     snapshotId: "shop:4711",
   },
+  // IONOS finds a server through its data centre, named after it: `<data centre>/<server>`.
+  ionos: {
+    server: {
+      id: "11111111-2222-4333-8444-777777777777/11111111-2222-4333-8444-888888888888",
+      name: "shop",
+      status: "running",
+      nameOnly: true,
+    },
+    snapshotId: "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff",
+  },
 };
 
 /**

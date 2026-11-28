@@ -26,11 +26,12 @@ describe("the server modules after a rebuild from a snapshot", () => {
   )("%s ignores changes to the server's image", (file, type) => {
     const body = resourceBody(MODULE_FILES[file] ?? "", type);
     // The attribute the module sets from its `image` variable (`image`, Contabo's `image_id`), or
-    // the `image_id` OVHcloud and Kamatera look up by that name (`local.image_id`, the
-    // `kamatera_image` data source's id).
+    // the image OVHcloud, Kamatera and IONOS look up by that name (`local.image_id`, the
+    // `kamatera_image` and `ionoscloud_image` data sources' ids).
     const sources: Record<string, string> = {
       ovh_cloud_instance: "local\\.image_id",
       kamatera_server: "data\\.kamatera_image\\.this\\.id",
+      ionoscloud_server: "data\\.ionoscloud_image\\.this\\.id",
     };
     const source = sources[type] ?? "var\\.image";
     const image = new RegExp(`^ {2}(\\w+) += ${source}$`, "m").exec(body)?.[1];

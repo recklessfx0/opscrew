@@ -296,6 +296,7 @@ const validatedPlans = {
   contabo: () => testPlan({ provider: "contabo", domain: "example.com", www: true }),
   ovhcloud: () => testPlan({ provider: "ovhcloud", domain: "example.com", www: true }),
   kamatera: () => testPlan({ provider: "kamatera", domain: "example.com", www: true }),
+  ionos: () => testPlan({ provider: "ionos", domain: "example.com", www: true }),
   "hetzner with a Portainer subdomain": () =>
     testPlan({ domain: "shop.example.com", portainer: PORTAINER_SUBDOMAIN }),
   "own server (public)": () => testPlan({ provider: "own", domain: "example.com", www: true }),

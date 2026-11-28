@@ -18,12 +18,13 @@ import { MODULE_FILES } from "./modules";
 const MODULES = CLOUD_PROVIDERS.map(({ terraform }) => terraform.module.name);
 /**
  * How deep a module's main.tf passes the template's values: 4 spaces in `user_data`'s
- * templatefile, 6 in the startup script's (Kamatera's `firstBoot: "script"`), which nests it.
+ * templatefile, 6 in the startup script's (Kamatera's `firstBoot: "script"`), which nests it,
+ * and 6 in IONOS's, whose user data is its disk's (in the server's `volume` block).
  */
 const TEMPLATE_INDENT: Readonly<Record<string, number>> = Object.fromEntries(
   CLOUD_PROVIDERS.map(({ terraform }) => [
     terraform.module.name,
-    terraform.firstBoot === "script" ? 6 : 4,
+    terraform.firstBoot === "script" || terraform.module.name === "ionos-instance" ? 6 : 4,
   ]),
 );
 
@@ -444,7 +445,8 @@ describe.each(
   it("uses the shared template and never rebuilds an existing server for it", () => {
     expect(MODULE_FILES[`${module}/cloud-init.yaml.tftpl`]).toBe(template);
     const main = MODULE_FILES[`${module}/main.tf`] ?? "";
-    expect(main).toMatch(new RegExp(`ignore_changes = \\[[^\\]]*\\b${firstBoot}\\b`));
+    // On the list's one line, IONOS's as its disk's (`volume[0].user_data`).
+    expect(main).toMatch(new RegExp(`ignore_changes = \\[[^\\n]*\\b${firstBoot}\\b`));
   });
 
   it("renders the same server, its user_data included, with and without the server's runner", () => {

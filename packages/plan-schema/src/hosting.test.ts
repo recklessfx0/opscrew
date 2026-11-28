@@ -312,7 +312,7 @@ describe("the hosting target's rules", () => {
     expect(issues(DeployPlanSchema.safeParse(plan))).toContainEqual({
       path: "servers",
       message:
-        "is refused with a hosting account: extra servers run on a cloud server or your own server (target.provider hetzner, digitalocean, contabo, ovhcloud, kamatera or own); remove servers, or choose such a target",
+        "is refused with a hosting account: extra servers run on a cloud server or your own server (target.provider hetzner, digitalocean, contabo, ovhcloud, kamatera, ionos or own); remove servers, or choose such a target",
     });
   });
 });

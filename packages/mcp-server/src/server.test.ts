@@ -149,7 +149,7 @@ describe("createOpscrewMcpServer", () => {
       '"your Portainer"',
       "never write the address into a file",
       "Never run tofu, terraform, hcloud, doctl, cntb, ssh or curl against Portainer yourself",
-      "`npx opscrew retarget --to <hetzner|digitalocean|contabo|ovhcloud|kamatera|own|portainer>`",
+      "`npx opscrew retarget --to <hetzner|digitalocean|contabo|ovhcloud|kamatera|ionos|own|portainer>`",
       "or to another Cloudflare account, `npx opscrew cloudflare move --to <account>`",
       "continue, switch, finish or abort",
       "`npx opscrew domain buy <domain> [--registrar <id>]`",

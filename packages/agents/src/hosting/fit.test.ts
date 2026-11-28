@@ -227,11 +227,11 @@ describe("design's refusals", () => {
       "A hosting account doesn't fit this app: the app runs a worker. Nothing was written.",
     );
     expect(refusal.hint).toBe(
-      "Choose a server target with `opscrew interview`: Hetzner Cloud, DigitalOcean, Contabo, OVHcloud, Kamatera or a server you already have.",
+      "Choose a server target with `opscrew interview`: Hetzner Cloud, DigitalOcean, Contabo, OVHcloud, Kamatera, IONOS Cloud or a server you already have.",
     );
     const withFix = hostingRefusal({ reason: "x", fix: "Keep a hosted Redis." });
     expect(withFix.hint).toBe(
-      "Keep a hosted Redis. Otherwise choose a server target with `opscrew interview`: Hetzner Cloud, DigitalOcean, Contabo, OVHcloud, Kamatera or a server you already have.",
+      "Keep a hosted Redis. Otherwise choose a server target with `opscrew interview`: Hetzner Cloud, DigitalOcean, Contabo, OVHcloud, Kamatera, IONOS Cloud or a server you already have.",
     );
   });
 });

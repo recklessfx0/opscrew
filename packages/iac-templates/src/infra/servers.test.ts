@@ -382,10 +382,12 @@ describe("the wanted backups of the servers whose provider's connector turns the
 
 /**
  * The locals a module names its deploy key and web rules by: OVHcloud names a key by its name
- * (`ssh_key_name`), and lists the web's ports to repeat per network (`web_ports`).
+ * (`ssh_key_name`), and lists the web's ports to repeat per network (`web_ports`), as IONOS does.
  */
 const MODULE_LOCALS: Readonly<Record<string, { key: string; web: string }>> = {
   "ovhcloud-instance": { key: "ssh_key_name", web: "web_ports" },
+  // IONOS has no key resource: its servers take the key's text.
+  "ionos-instance": { key: "ssh_key_id", web: "web_ports" },
 };
 
 describe("the server modules", () => {
@@ -403,14 +405,25 @@ describe("the server modules", () => {
       expect(variables).toMatch(
         /variable "ssh_key_id" \{[^}]*type {8}= string\n {2}default {5}= null/,
       );
-      if (terraform.firewallResourceType === "") {
-        // No cloud firewall and no key resource (Kamatera's): every server takes the deploy key's
-        // text, which is its ssh_key_id, and the server's own firewall gets the web's and
-        // WireGuard's ports.
+      if (terraform.extraShared.sshKeyId === "var.deploy_ssh_public_key") {
+        // No key resource (Kamatera's and IONOS's): every server takes the deploy key's text,
+        // which is its ssh_key_id.
         expect(MODULE_FILES[`${module}/outputs.tf`]).toMatch(
           /output "ssh_key_id" \{[^}]*value {7}= var\.ssh_public_key/,
         );
         expect(main).not.toMatch(/resource "\w+" "deploy"/);
+      } else {
+        expect(MODULE_FILES[`${module}/outputs.tf`]).toMatch(
+          new RegExp(`output "ssh_key_id" \\{[^}]*value {7}= local\\.${locals.key}`),
+        );
+        // The deploy key only without ssh_key_id.
+        expect(main).toMatch(
+          /resource "\w+" "deploy" \{\n {2}count += var\.ssh_key_id == null \? 1 : 0/,
+        );
+      }
+      if (terraform.firewallResourceType === "") {
+        // No cloud firewall (Kamatera's): the server's own firewall gets the web's and
+        // WireGuard's ports.
         expect(main).toMatch(
           /web_sources += var\.web \? join\(" ", var\.http_allowed_cidrs\) : ""/,
         );
@@ -419,13 +432,6 @@ describe("the server modules", () => {
         );
         return;
       }
-      expect(MODULE_FILES[`${module}/outputs.tf`]).toMatch(
-        new RegExp(`output "ssh_key_id" \\{[^}]*value {7}= local\\.${locals.key}`),
-      );
-      // The deploy key only without ssh_key_id.
-      expect(main).toMatch(
-        /resource "\w+" "deploy" \{\n {2}count += var\.ssh_key_id == null \? 1 : 0/,
-      );
       // A firewall's dynamic rule blocks, or the rules of the firewall the connector applies (ADR
       // 0029, D8), which a `for` expression lists.
       expect(main).toMatch(

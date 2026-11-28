@@ -57,7 +57,6 @@ describe("the provider catalogue", () => {
       expect(entry).toMatchObject({
         name: definition.displayName,
         consoleUrl: definition.consoleUrl,
-        signupUrl: definition.signupUrl,
         pricingUrl: definition.pricingUrl,
         currency: definition.offering.currency,
         billing: definition.offering.billing,
@@ -67,6 +66,8 @@ describe("the provider catalogue", () => {
           createUrl: definition.credentials.createUrl,
         },
       });
+      // A sign-up page only where the provider names one (IONOS names none).
+      expect(entry?.signupUrl).toBe(definition.signupUrl);
       expect(entry?.credentials.variables.map((variable) => variable.name)).toEqual(
         definition.credentials.envVars,
       );
@@ -106,6 +107,8 @@ describe("the provider catalogue", () => {
       { provider: "ovhcloud", size: "b3-16", location: "DE1" },
       // Kamatera's A-2-4 has 40 GB of disk, so an app with PostgreSQL (60 GB) gets A-4-8.
       { provider: "kamatera", size: "A-4-8", location: "EU-FR" },
+      // IONOS's vcpu-2-4 has 80 GB of disk.
+      { provider: "ionos", size: "vcpu-2-4", location: "de/fra/1" },
     ]);
     expect(suggestions.staticSite).toMatchObject({
       target: "cloudflare-workers",
@@ -159,6 +162,25 @@ describe("the provider catalogue", () => {
     });
     expect(a24?.hourly).toBeCloseTo(19 / 730, 4);
     expect(sizes("kamatera").every((size) => size.setupFee === undefined)).toBe(true);
+    // IONOS bills by the hour (the monthly price over 730), with no setup fee, at one price in
+    // every location, its reserved IPv4 address included.
+    expect(sizes("ionos").map((size) => size.id)).toEqual([
+      "vcpu-1-2",
+      "vcpu-2-4",
+      "vcpu-4-8",
+      "vcpu-2-8",
+      "vcpu-4-16",
+    ]);
+    const v24 = sizes("ionos").find((size) => size.id === "vcpu-2-4");
+    expect(v24).toMatchObject({
+      vcpu: 2,
+      memoryMb: 4096,
+      diskGb: 80,
+      locations: ["de/fra/1", "de/fra/2", "de/txl", "us/ewr", "us/mci"],
+    });
+    expect(v24?.monthly).toBeCloseTo(31.67, 2);
+    expect(v24?.hourly).toBeCloseTo((v24?.monthly ?? 0) / 730, 4);
+    expect(sizes("ionos").every((size) => size.setupFee === undefined)).toBe(true);
   });
 
   it("gives a token's format where the value alone has one, and marks the secrets", async () => {
@@ -278,6 +300,7 @@ describe("the provider catalogue", () => {
       "cloud-server contabo": "https://contabo.com/en/vps/",
       "cloud-server ovhcloud": "https://www.ovhcloud.com/en-ie/public-cloud/prices/",
       "cloud-server kamatera": "https://www.kamatera.com/pricing/",
+      "cloud-server ionos": "https://cloud.ionos.com/prices",
       "cloudflare cloudflare": "https://www.cloudflare.com/plans/",
       "cloudflare cloudflare-workers":
         "https://developers.cloudflare.com/workers/platform/pricing/",
@@ -290,7 +313,8 @@ describe("the provider catalogue", () => {
 
   it("links plain sign-up pages, never one with a referral or affiliate id", async () => {
     const { providers } = await providerCatalogue("1.2.3");
-    for (const provider of providers) {
+    // IONOS names none: it sells to businesses.
+    for (const provider of providers.filter(({ id }) => id !== "ionos")) {
       const url = new URL(provider.signupUrl ?? "");
       expect(url.protocol, provider.id).toBe("https:");
       expect(url.search, provider.id).toBe("");

@@ -97,7 +97,7 @@ describe("target.shares", () => {
       additionalProperties: false,
       required: ["app", "provider"],
       properties: {
-        provider: { enum: ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera"] },
+        provider: { enum: ["hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera", "ionos"] },
       },
     });
   });

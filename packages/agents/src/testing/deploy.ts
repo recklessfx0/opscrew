@@ -89,6 +89,7 @@ const TARGETS = {
   contabo: { location: "EU", serverType: "V153", image: DEFAULT_IMAGES.contabo },
   ovhcloud: { location: "GRA11", serverType: "d2-4", image: DEFAULT_IMAGES.ovhcloud },
   kamatera: { location: "EU-FR", serverType: "A-2-4", image: DEFAULT_IMAGES.kamatera },
+  ionos: { location: "de/fra/1", serverType: "vcpu-2-4", image: DEFAULT_IMAGES.ionos },
 } as const;
 
 /** A valid `opscrew/plan.yaml` input (parsed with the schema so defaults are filled). */

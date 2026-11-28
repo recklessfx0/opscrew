@@ -311,6 +311,11 @@ describe("provider question", () => {
           hint: "servers in Frankfurt, Amsterdam, Stockholm, New York, Santa Clara and Singapore; billed by the hour, counted by the minute, until terminated (a stopped server still bills); prices in USD; cloud firewall: none; server firewall: on, from a few seconds after the server starts",
         },
         {
+          value: "ionos",
+          label: "IONOS Cloud",
+          hint: "for businesses only; servers in Frankfurt, Berlin, Newark and Lenexa; billed by the minute until deleted (a stopped server still bills its disk and its reserved IPv4 address, and one shut down from its own system bills in full); a reserved IPv4 address (5 EUR per 30 days) in each price; prices in EUR (a US contract with IONOS CLOUD Inc. bills in USD, at its own prices)",
+        },
+        {
           value: "own",
           label: "A server you already have",
           hint: "an Ubuntu or Debian server you reach over SSH with a key, rented anywhere, also a computer at home; you already pay for it",

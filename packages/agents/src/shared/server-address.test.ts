@@ -187,7 +187,7 @@ describe("the server's address in OpsCrew's local state", () => {
           /If this project deploys to your own server, do not delete the file: run `opscrew interview` again instead.*confirm the server's host key again/,
         );
         expect(hint).toMatch(
-          /For Hetzner Cloud, DigitalOcean, Contabo, OVHcloud or Kamatera .*Delete \.opscrew\/server\.json/,
+          /For Hetzner Cloud, DigitalOcean, Contabo, OVHcloud, Kamatera or IONOS Cloud .*Delete \.opscrew\/server\.json/,
         );
         expect(hint).toContain("on the computer that provisioned the server");
       }

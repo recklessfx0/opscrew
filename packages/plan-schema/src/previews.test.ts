@@ -143,7 +143,7 @@ describe("environment.previews", () => {
     });
     expect(issue.path).toBe("target.provider");
     expect(issue.message).toContain(
-      'can be "hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera" or "own" with previews',
+      'can be "hetzner", "digitalocean", "contabo", "ovhcloud", "kamatera", "ionos" or "own" with previews',
     );
   });
 

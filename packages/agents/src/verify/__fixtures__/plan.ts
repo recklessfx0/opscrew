@@ -30,6 +30,7 @@ const TARGETS = {
   contabo: { provider: "contabo", location: "EU", serverType: "V153" },
   ovhcloud: { provider: "ovhcloud", location: "GRA11", serverType: "d2-4" },
   kamatera: { provider: "kamatera", location: "EU-FR", serverType: "A-2-4" },
+  ionos: { provider: "ionos", location: "de/fra/1", serverType: "vcpu-2-4" },
 } as const;
 
 /** A deploy plan for the `shop` app, with a domain by default and the server provisioned. */

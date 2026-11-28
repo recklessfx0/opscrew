@@ -180,6 +180,9 @@ describe("runAdvise: one server", () => {
       "OVHcloud's prices in WAW1",
       "Kamatera's prices in EU-FR",
       "Kamatera's prices in EU",
+      "IONOS Cloud's prices in de/fra/1",
+      "IONOS Cloud's prices in de/fra/2",
+      "IONOS Cloud's prices in de/txl",
       "Dependabot alerts",
       "Dependabot's open pull requests",
       "the GitHub token's expiry",
@@ -196,6 +199,9 @@ describe("runAdvise: one server", () => {
       ),
       expect.stringMatching(
         /^live prices: HCLOUD_TOKEN is not set, so prices come from Hetzner's published price list dated \d{4}-\d{2}-\d{2}/,
+      ),
+      expect.stringMatching(
+        /^live prices: IONOS has no price API, so prices come from IONOS's published price list dated \d{4}-\d{2}-\d{2}/,
       ),
       expect.stringMatching(
         /^live prices: Kamatera has no price API, so prices come from Kamatera's published price list dated \d{4}-\d{2}-\d{2}/,

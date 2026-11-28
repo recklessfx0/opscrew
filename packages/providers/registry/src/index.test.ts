@@ -4,6 +4,7 @@ import { type CloudProvider, CloudProviderSchema, DEFAULT_IMAGES } from "@opscre
 import { definition as contabo } from "@opscrew/provider-contabo";
 import { definition as digitalocean } from "@opscrew/provider-digitalocean";
 import { definition as hetzner } from "@opscrew/provider-hetzner";
+import { definition as ionos } from "@opscrew/provider-ionos";
 import { definition as kamatera } from "@opscrew/provider-kamatera";
 import { definition as ovhcloud } from "@opscrew/provider-ovhcloud";
 import { describe, expect, it } from "vitest";
@@ -12,12 +13,13 @@ import { validateCloudProvider } from "./validate";
 
 describe("the registry", () => {
   it("lists the built-in definitions in order, as their packages export them", () => {
-    expect(CLOUD_PROVIDERS).toHaveLength(5);
+    expect(CLOUD_PROVIDERS).toHaveLength(6);
     expect(CLOUD_PROVIDERS[0]).toBe(hetzner);
     expect(CLOUD_PROVIDERS[1]).toBe(digitalocean);
     expect(CLOUD_PROVIDERS[2]).toBe(contabo);
     expect(CLOUD_PROVIDERS[3]).toBe(ovhcloud);
     expect(CLOUD_PROVIDERS[4]).toBe(kamatera);
+    expect(CLOUD_PROVIDERS[5]).toBe(ionos);
   });
 
   it("has the ids of plan-schema's cloud providers, in order", () => {
@@ -30,11 +32,12 @@ describe("the registry", () => {
     expect(cloudProvider("contabo")).toBe(contabo);
     expect(cloudProvider("ovhcloud")).toBe(ovhcloud);
     expect(cloudProvider("kamatera")).toBe(kamatera);
+    expect(cloudProvider("ionos")).toBe(ionos);
   });
 
   it("names each provider's credentials: every one of a set, else the first", () => {
     expect(CLOUD_CREDENTIALS).toBe(
-      "HCLOUD_TOKEN for Hetzner Cloud, DIGITALOCEAN_TOKEN for DigitalOcean, CNTB_OAUTH2_CLIENT_ID, CNTB_OAUTH2_CLIENT_SECRET, CNTB_OAUTH2_USER and CNTB_OAUTH2_PASS for Contabo, OVH_ENDPOINT, OVH_CLIENT_ID, OVH_CLIENT_SECRET and OVH_CLOUD_PROJECT_SERVICE for OVHcloud, KAMATERA_API_CLIENT_ID and KAMATERA_API_SECRET for Kamatera",
+      "HCLOUD_TOKEN for Hetzner Cloud, DIGITALOCEAN_TOKEN for DigitalOcean, CNTB_OAUTH2_CLIENT_ID, CNTB_OAUTH2_CLIENT_SECRET, CNTB_OAUTH2_USER and CNTB_OAUTH2_PASS for Contabo, OVH_ENDPOINT, OVH_CLIENT_ID, OVH_CLIENT_SECRET and OVH_CLOUD_PROJECT_SERVICE for OVHcloud, KAMATERA_API_CLIENT_ID and KAMATERA_API_SECRET for Kamatera, IONOS_TOKEN for IONOS Cloud",
     );
   });
 
@@ -49,7 +52,7 @@ describe("the registry", () => {
     expect(error).toMatchObject({
       code: "INVALID_INPUT",
       message: 'OpsCrew does not create servers on "linode".',
-      hint: "Choose one of its cloud providers: hetzner, digitalocean, contabo, ovhcloud and kamatera.",
+      hint: "Choose one of its cloud providers: hetzner, digitalocean, contabo, ovhcloud, kamatera and ionos.",
     });
   });
 });
@@ -107,8 +110,10 @@ describe.each(CLOUD_PROVIDERS.map((provider) => [provider.id, provider] as const
       }
     });
 
-    it("has a plain sign-up page and pricing page", () => {
-      expect(provider.signupUrl).toMatch(/^https:\/\/[^?#]+$/);
+    it("has a plain pricing page, and a plain sign-up page when it names one", () => {
+      // IONOS names none: it sells to businesses.
+      if (provider.signupUrl !== undefined)
+        expect(provider.signupUrl).toMatch(/^https:\/\/[^?#]+$/);
       expect(provider.pricingUrl).toMatch(/^https:\/\/[^?#]+$/);
     });
 

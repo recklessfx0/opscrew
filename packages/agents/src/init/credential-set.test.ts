@@ -101,7 +101,7 @@ describe("opscrew init with credentials as a set", () => {
     const partial = await providerCheck(three, { offline: true });
     expect(partial.status).toBe("warn");
     expect(partial.message).toContain(
-      "HCLOUD_TOKEN for Hetzner Cloud, SET_PASS for DigitalOcean, CNTB_OAUTH2_CLIENT_ID, CNTB_OAUTH2_CLIENT_SECRET, CNTB_OAUTH2_USER and CNTB_OAUTH2_PASS for Contabo, OVH_ENDPOINT, OVH_CLIENT_ID, OVH_CLIENT_SECRET and OVH_CLOUD_PROJECT_SERVICE for OVHcloud or KAMATERA_API_CLIENT_ID and KAMATERA_API_SECRET for Kamatera",
+      "HCLOUD_TOKEN for Hetzner Cloud, SET_PASS for DigitalOcean, CNTB_OAUTH2_CLIENT_ID, CNTB_OAUTH2_CLIENT_SECRET, CNTB_OAUTH2_USER and CNTB_OAUTH2_PASS for Contabo, OVH_ENDPOINT, OVH_CLIENT_ID, OVH_CLIENT_SECRET and OVH_CLOUD_PROJECT_SERVICE for OVHcloud, KAMATERA_API_CLIENT_ID and KAMATERA_API_SECRET for Kamatera or IONOS_TOKEN for IONOS Cloud",
     );
     expect(partial.fix).toContain("For a cloud provider, set one provider's token or credentials.");
 
