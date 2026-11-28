@@ -117,8 +117,10 @@ won't, so it leaves UpCloud's firewall off and installs the server's own statefu
 - **A few seconds after the server starts,** when that step runs, password logins go off and then
   the rules apply. Until then nothing filters the server's ports, and nothing of your app runs
   there yet. If the firewall can't be put in place, the server powers itself off rather than stay
-  reachable. It stays off: no later `npx opscrew provision` turns it on again, and OpsCrew doesn't
-  offer to restart it. Read why in its first boot's log, `/var/log/opscrew-first-boot.log`, from
+  reachable. OpsCrew doesn't offer to restart it. If anything starts it again (UpCloud's
+  Terraform provider starts a server after changing it), the step runs again at that boot, and
+  powers the server off again if it still fails: the step stops running only once it has
+  succeeded. Read why in its first boot's log, `/var/log/opscrew-first-boot.log`, from
   the server's console in UpCloud's control panel.
 - **Kept across reboots:** the rules are in `/etc/opscrew/firewall.nft`, which OpsCrew's own unit,
   `opscrew-firewall.service`, loads at every boot before the network and Docker. It replaces only
@@ -126,14 +128,20 @@ won't, so it leaves UpCloud's firewall off and installs the server's own statefu
 - **Checked:** `npx opscrew design` and the plan say "cloud firewall: none; server firewall: on",
   and `npx opscrew secure` reads the live rules from the server and fails when they are missing or
   differ from the plan, with the steps to fix them.
-- **Not updated after the first boot.** UpCloud would have to build the server's disk again to run
-  a changed first boot, so OpsCrew can't change the rules in place yet. So once the server exists,
-  `npx opscrew provision` and `npx opscrew retarget` refuse a plan that changes the networks the
-  firewall lets in, before anything is approved. That covers a new address for SSH, new Cloudflare
-  ranges, or a private network for a second server. Change `opscrew/plan.yaml` back, or remove the
-  app's server and provision it again. When the rules on the server were changed, as root from the
-  server's console, `systemctl restart opscrew-firewall.service` loads them again as they were
-  written.
+- **Updated in place with a hash-approved host plan.** When `opscrew/plan.yaml` or Cloudflare's
+  ranges change the networks of an existing server (narrower or new SSH ranges, updated Cloudflare
+  IP ranges, or a private network's WireGuard port), `npx opscrew provision` (and
+  `npx opscrew retarget`) compares the plan against `/etc/opscrew/firewall-networks.json` on the
+  server (falling back to the first boot's user data if the server has not been updated in place
+  yet) and shows a host plan to approve by its SHA-256 hash. Once approved, OpsCrew rewrites
+  `/etc/opscrew/firewall.nft`, reloads `opscrew-firewall.service` (replacing only
+  `inet opscrew-firewall` in one transaction), and writes `/etc/opscrew/firewall-networks.json`
+  (mode `0600`, root-owned) under a dead-man rollback: if a fresh SSH login fails afterwards, the
+  server puts both files back and reloads the old rules. The first boot's step never runs again
+  once it has succeeded, so a reboot keeps the updated rules. If `npx opscrew secure` finds the live
+  rules differ from the plan, run `npx opscrew provision` when the plan's networks changed, or as
+  root from the server's console run `systemctl restart opscrew-firewall.service` when the live
+  rules were altered outside OpsCrew.
 - **UpCloud's firewall stays off.** Don't turn it on in the control panel with only the ports your
   app serves: being stateless, it would then drop the answers to the server's own connections, so
   the server could no longer download updates or images.
