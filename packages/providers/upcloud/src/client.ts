@@ -409,11 +409,9 @@ export class UpcloudClient {
         if (thing === undefined) {
           return fail("PROVIDER_ERROR", `UpCloud refused ${request} ${http}${said}`, fixIt);
         }
-        // Only a write is followed by a read, so a read refused this way never reads again.
-        const state = method === "GET" ? undefined : await this.#stateNow(thing, path);
         return fail(
           "PROVIDER_ERROR",
-          `UpCloud refused ${request}: the ${thing} is ${state === undefined ? "in a state that doesn't allow this" : `"${state}"`} ${http}${said}`,
+          `UpCloud refused ${request}: the ${thing} is in a state that doesn't allow this ${http}${said}`,
           thing === "server"
             ? "Wait for any change in progress to finish, and start or stop the server as this needs (a stop needs it started; a start, a disk restore and a delete need it stopped), then try again."
             : "Wait until the disk is online again (a backup or another change in progress must finish first), then try again.",
@@ -437,27 +435,6 @@ export class UpcloudClient {
         : method === "GET"
           ? "UpCloud failed on its side: try again in a few minutes, and contact UpCloud's support if it keeps failing."
           : `UpCloud failed on its side, and the change may still have been made: check your UpCloud account in ${PANEL} before trying again.`,
-    );
-  }
-
-  /**
-   * The state of the server or disk a refused write's `path` names (`/server/{uuid}…` or
-   * `/storage/{uuid}…`), read once; `undefined` when the path names no such one or the read fails.
-   */
-  async #stateNow(thing: "server" | "disk", path: UpcloudPath): Promise<string | undefined> {
-    if (thing === "server") {
-      const uuid = /^\/server\/([^/]+)/.exec(path)?.[1];
-      if (uuid === undefined) return undefined;
-      return this.get(`/server/${uuid}`, serverSchema).then(
-        ({ server }) => server.state,
-        () => undefined,
-      );
-    }
-    const uuid = /^\/storage\/([^/]+)/.exec(path)?.[1];
-    if (uuid === undefined) return undefined;
-    return this.get(`/storage/${uuid}`, storageSchema).then(
-      ({ storage }) => storage.state,
-      () => undefined,
     );
   }
 

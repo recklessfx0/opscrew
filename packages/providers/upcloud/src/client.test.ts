@@ -393,79 +393,37 @@ describe("UpcloudClient errors", () => {
     expect(error.hint).toBe(`It may have been deleted: check your UpCloud account in ${PANEL}.`);
   });
 
-  it("names the server's state after a 409 SERVER_STATE_ILLEGAL", async () => {
+  it("says the server's state is wrong after a 409 SERVER_STATE_ILLEGAL, and reads nothing more", async () => {
     const { client, calls } = setup({
-      [`POST ${STOP}`]: upcloudError(
-        409,
-        "SERVER_STATE_ILLEGAL",
-        "The server is in a state in which it cannot be used.",
-      ),
-      "GET /server/srv-1": serverState("maintenance"),
+      [`POST ${STOP}`]: upcloudError(409, "SERVER_STATE_ILLEGAL", "Illegal state."),
     });
     const error = await failure(client.post(STOP, z.unknown(), {}));
     expect(error.code).toBe("PROVIDER_ERROR");
     expect(error.message).toBe(
-      `UpCloud refused POST ${STOP}: the server is "maintenance" (HTTP 409, SERVER_STATE_ILLEGAL): The server is in a state in which it cannot be used.`,
+      `UpCloud refused POST ${STOP}: the server is in a state that doesn't allow this (HTTP 409, SERVER_STATE_ILLEGAL): Illegal state.`,
     );
     expect(error.hint).toBe(
       "Wait for any change in progress to finish, and start or stop the server as this needs (a stop needs it started; a start, a disk restore and a delete need it stopped), then try again.",
     );
-    // The post itself was sent once.
-    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
-      `POST ${STOP}`,
-      "GET /server/srv-1",
-    ]);
+    // The post itself was sent once, and nothing else was read.
+    expect(calls).toHaveLength(1);
   });
 
-  it("names the disk's state after a 409 STORAGE_STATE_ILLEGAL", async () => {
+  it("says the disk's state is wrong after a 409 STORAGE_STATE_ILLEGAL", async () => {
     const { client } = setup({
       [`POST ${BACKUP}`]: upcloudError(
         409,
         "STORAGE_STATE_ILLEGAL",
         "The storage is in a state in which it cannot be used.",
       ),
-      "GET /storage/sto-1": storageState("backuping"),
     });
     const error = await failure(client.post(BACKUP, backup, {}));
     expect(error.message).toBe(
-      `UpCloud refused POST ${BACKUP}: the disk is "backuping" (HTTP 409, STORAGE_STATE_ILLEGAL): The storage is in a state in which it cannot be used.`,
+      `UpCloud refused POST ${BACKUP}: the disk is in a state that doesn't allow this (HTTP 409, STORAGE_STATE_ILLEGAL): The storage is in a state in which it cannot be used.`,
     );
     expect(error.hint).toBe(
       "Wait until the disk is online again (a backup or another change in progress must finish first), then try again.",
     );
-  });
-
-  it("says which state is wrong when the path doesn't name it, or its read fails", async () => {
-    const restore = "/storage/bak-1/restore";
-    const { client, calls } = setup({
-      [`POST ${restore}`]: upcloudError(409, "SERVER_STATE_ILLEGAL", "The server is started."),
-    });
-    const error = await failure(client.post(restore, z.unknown()));
-    expect(error.message).toBe(
-      `UpCloud refused POST ${restore}: the server is in a state that doesn't allow this (HTTP 409, SERVER_STATE_ILLEGAL): The server is started.`,
-    );
-    expect(calls).toHaveLength(1);
-
-    const gone = setup({
-      [`POST ${STOP}`]: upcloudError(409, "SERVER_STATE_ILLEGAL", "Illegal state."),
-      "GET /server/srv-1": upcloudError(404, "SERVER_NOT_FOUND", "Gone."),
-    });
-    const unread = await failure(gone.client.post(STOP, z.unknown()));
-    expect(unread.message).toBe(
-      `UpCloud refused POST ${STOP}: the server is in a state that doesn't allow this (HTTP 409, SERVER_STATE_ILLEGAL): Illegal state.`,
-    );
-    expect(gone.calls).toHaveLength(2);
-  });
-
-  it("reads no state after a read refused with a state error", async () => {
-    const { client, calls } = setup({
-      "GET /server/srv-1": upcloudError(409, "SERVER_STATE_ILLEGAL", "Illegal state."),
-    });
-    const error = await failure(client.get("/server/srv-1", z.unknown()));
-    expect(error.message).toBe(
-      "UpCloud refused GET /server/srv-1: the server is in a state that doesn't allow this (HTTP 409, SERVER_STATE_ILLEGAL): Illegal state.",
-    );
-    expect(calls).toHaveLength(1);
   });
 
   it("names another 409 as UpCloud says it", async () => {
