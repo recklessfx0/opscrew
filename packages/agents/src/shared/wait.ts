@@ -496,37 +496,41 @@ async function pinInstalledServer(
   return { knownHostsLines, changed: true, created: false };
 }
 
-/** The provider's definition when its servers take the first boot as a startup script (Kamatera). */
-function startupScriptProvider(profile: ReadyProfile) {
-  const provider = isCloudProvider(profile.id) ? cloudProvider(profile.id) : undefined;
-  return provider?.terraform.firstBoot === "script" ? provider : undefined;
+/** The provider's definition, for a cloud provider. */
+function cloudDefinition(profile: ReadyProfile) {
+  return isCloudProvider(profile.id) ? cloudProvider(profile.id) : undefined;
 }
 
 /**
  * True where the server's firewall is its own, set up by its first boot (`firewallCheck`
- * `server`, Kamatera). Such a server that never opens SSH may have powered itself off because that
- * firewall failed, and a restart might bring it up without one, so OpsCrew never restarts it.
+ * `server`: Kamatera's startup script, UpCloud's boothook). Such a server that never opens SSH may
+ * have powered itself off because that firewall failed, and a restart might bring it up without
+ * one, so OpsCrew never restarts it.
  */
 function ownFirewall(profile: ReadyProfile): boolean {
-  return startupScriptProvider(profile)?.texts.secops.firewallCheck === "server";
+  return cloudDefinition(profile)?.texts.secops.firewallCheck === "server";
 }
 
 /**
  * What to check about a new server that doesn't answer, then `again`: the server in the provider's
- * console, or, where the first boot runs as its startup script (`firstBoot` `script`, Kamatera),
- * that script's log there, saying that it powers the server off when it can't set up the server's
- * own firewall (`firewallCheck` `server`).
+ * console, or, where the first boot runs as its startup script (`firstBoot` `script`, Kamatera) or
+ * sets up the server's own firewall (`firewallCheck` `server`, Kamatera and UpCloud), the first
+ * boot's log there, saying that it powers the server off when it can't set up that firewall.
  */
 function consoleHint(profile: ReadyProfile, again: string): string {
   const noun = profile.serverNoun;
   const where = providerConsole(profile);
-  const provider = startupScriptProvider(profile);
-  if (provider === undefined) return `Check the ${noun} in the ${where}, then ${again}`;
-  const off =
-    provider.texts.secops.firewallCheck === "server"
-      ? ", which powers it off rather than leave it reachable without its own firewall"
-      : "";
-  return `The ${noun} runs OpsCrew's first boot as its startup script${off}. Read its log, ${FIRST_BOOT_LOG}, from the ${noun}'s console in the ${where}, then ${again}`;
+  const provider = cloudDefinition(profile);
+  const script = provider?.terraform.firstBoot === "script";
+  const own = ownFirewall(profile);
+  if (!script && !own) return `Check the ${noun} in the ${where}, then ${again}`;
+  const runs = script
+    ? "runs OpsCrew's first boot as its startup script"
+    : "sets up its own firewall first at its first boot";
+  const off = own
+    ? ", which powers it off rather than leave it reachable without its own firewall"
+    : "";
+  return `The ${noun} ${runs}${off}. Read its log, ${FIRST_BOOT_LOG}, from the ${noun}'s console in the ${where}, then ${again}`;
 }
 
 /** Why the setup did not finish, with the steps cloud-init named as failed. */
@@ -674,7 +678,7 @@ export async function readyNewServer(
     if (outcome === "unreachable") {
       // Without the deploy user's login nothing shows what the server holds: no install. A first
       // boot run as a startup script has its log in the console instead.
-      const script = startupScriptProvider(profile) !== undefined;
+      const script = cloudDefinition(profile)?.terraform.firstBoot === "script";
       throw new OpsCrewError(
         "PROVIDER_ERROR",
         `${subject} did not let the deploy user in to check its first-boot setup within ${durationText(CLOUD_INIT_WAIT_MS)}.`,

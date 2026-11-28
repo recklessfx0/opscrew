@@ -353,12 +353,15 @@ describe.each(VPS_PROVIDERS)("a new server's first boot on %s", (provider) => {
     for (const { result } of [silent, locked]) {
       const hint = (result as OpsCrewError).hint ?? "";
       expect(hint.includes(`Read its log, ${FIRST_BOOT_LOG}, from the server's console`)).toBe(
-        script,
+        script || firewall,
       );
       expect(hint.includes("powers it off rather than leave it reachable")).toBe(firewall);
-      if (script) {
+      if (script || firewall) {
+        const runs = script
+          ? "runs OpsCrew's first boot as its startup script"
+          : "sets up its own firewall first at its first boot";
         expect(hint).toBe(
-          `The server runs OpsCrew's first boot as its startup script${firewall ? ", which powers it off rather than leave it reachable without its own firewall" : ""}. Read its log, ${FIRST_BOOT_LOG}, from the server's console in the ${providerConsole(profile)}, then ${AGAIN}`,
+          `The server ${runs}${firewall ? ", which powers it off rather than leave it reachable without its own firewall" : ""}. Read its log, ${FIRST_BOOT_LOG}, from the server's console in the ${providerConsole(profile)}, then ${AGAIN}`,
         );
       }
     }

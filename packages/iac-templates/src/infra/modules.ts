@@ -7,9 +7,10 @@ import { SERVER_FIREWALL_FILE } from "./server-firewall";
 /**
  * The files of one provider's server module: its own, and the files OpsCrew adds to every server
  * module (the first boot's `cloud-init.yaml.tftpl`, ADR 0029 D5). A provider whose servers take the
- * first boot as a startup script also gets `first-boot.sh.tftpl` (D12), and when its firewall is
- * the server's own (`firewallCheck` `server`, issue #13) `server-firewall.sh.tftpl`, the first
- * step of that script; the others never do.
+ * first boot as a startup script also gets `first-boot.sh.tftpl` (D12). A provider whose firewall
+ * is the server's own (`firewallCheck` `server`, issue #13) gets `server-firewall.sh.tftpl`, the
+ * first step of its first boot: of the startup script (Kamatera), or a boothook before the
+ * cloud-config (UpCloud, #69). The others never do.
  */
 export function serverModuleFiles(
   terraform: Pick<ProviderTerraform, "module" | "firstBoot">,
@@ -20,7 +21,7 @@ export function serverModuleFiles(
     path === FIRST_BOOT_SCRIPT
       ? script
       : path === SERVER_FIREWALL_FILE
-        ? script && firewallCheck === "server"
+        ? firewallCheck === "server"
         : true,
   );
   return { ...terraform.module.files, ...Object.fromEntries(shared) };

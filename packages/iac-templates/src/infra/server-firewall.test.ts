@@ -158,16 +158,22 @@ function tableLines(file: string): string[] {
 }
 
 describe("the server firewall's step, for a provider with no cloud firewall", () => {
-  it("ships only to a provider whose first boot is a script and whose firewall is the server's", () => {
-    const both = serverModuleFiles({ module, firstBoot: "script" }, "server");
-    expect(both[SERVER_FIREWALL_FILE]).toContain(SERVER_FIREWALL_MARKER);
-    expect(both[FIRST_BOOT_SCRIPT]).toBeTruthy();
+  it("ships to every provider whose firewall is the server's, whatever its first boot", () => {
+    const script = serverModuleFiles({ module, firstBoot: "script" }, "server");
+    expect(script[SERVER_FIREWALL_FILE]).toContain(SERVER_FIREWALL_MARKER);
+    expect(script[FIRST_BOOT_SCRIPT]).toBeTruthy();
+    // A cloud-init first boot carries it as a boothook before the cloud-config (UpCloud).
+    for (const files of [
+      serverModuleFiles({ module }, "server"),
+      serverModuleFiles({ module, firstBoot: "cloud-init" }, "server"),
+    ]) {
+      expect(files[SERVER_FIREWALL_FILE]).toContain(SERVER_FIREWALL_MARKER);
+      expect(files[FIRST_BOOT_SCRIPT]).toBeUndefined();
+    }
     for (const files of [
       serverModuleFiles({ module, firstBoot: "script" }),
       serverModuleFiles({ module, firstBoot: "script" }, "cloud"),
-      // No startup script to carry it.
-      serverModuleFiles({ module }, "server"),
-      serverModuleFiles({ module, firstBoot: "cloud-init" }, "server"),
+      serverModuleFiles({ module }),
     ]) {
       expect(files[SERVER_FIREWALL_FILE]).toBeUndefined();
     }
