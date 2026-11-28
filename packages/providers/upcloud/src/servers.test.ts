@@ -376,10 +376,27 @@ describe("rebuild", () => {
       SERVER,
     ]);
     expect(posted(calls)).toEqual([
-      { stop_server: { stop_type: "soft", timeout: "240" } },
+      { stop_server: { stop_type: "soft", timeout: "600" } },
       undefined,
       { server: { start_type: "async" } },
     ]);
+  });
+
+  it("says the server stays stopped when UpCloud refuses the restore after the stop", async () => {
+    const { api, calls } = setup({
+      [SERVER]: [details("started"), details("stopped")],
+      [BACKUPS]: BACKUPS_OF_ACCOUNT,
+      [STOP]: details("maintenance"),
+      [`POST /storage/${BACKUP_OLD}/restore`]: upcloudError(
+        409,
+        "STORAGE_STATE_ILLEGAL",
+        "The storage is in a state in which it cannot be used.",
+      ),
+    });
+    const error = await failure(api.rebuild(SHOP_ID, BACKUP_OLD));
+    expect(error.message).toContain("was stopped for the restore and is still stopped");
+    expect(error.hint).toContain("start the server there");
+    expect(requests(calls)).not.toContain(START);
   });
 
   it("restores a stopped server without stopping it again", async () => {
@@ -433,24 +450,24 @@ describe("rebuild", () => {
     });
     const error = await failure(api.rebuild(SHOP_ID, BACKUP_OLD));
     expect(error.message).toBe(
-      `UpCloud's request to restore the disk of the server shop from the backup ${BACKUP_OLD} did not finish within 15 minutes: the disk is still "maintenance".`,
+      `UpCloud's request to restore the disk of the server shop from the backup ${BACKUP_OLD} did not finish within 15 minutes: the disk is still "maintenance". The UpCloud server shop was stopped for the restore and is still stopped.`,
     );
   });
 });
 
 describe("power", () => {
-  it("stops the server softly, which UpCloud forces after 4 minutes, and waits until it is stopped", async () => {
+  it("stops the server softly, which UpCloud forces after 10 minutes, and waits until it is stopped", async () => {
     const { api, calls, time } = setup({
       [SERVER]: [details("started"), details("started"), details("stopped")],
       [STOP]: details("started"),
     });
     await api.powerOff(SHOP_ID);
     expect(requests(calls)).toEqual([SERVER, STOP, SERVER, SERVER]);
-    expect(posted(calls)).toEqual([{ stop_server: { stop_type: "soft", timeout: "240" } }]);
+    expect(posted(calls)).toEqual([{ stop_server: { stop_type: "soft", timeout: "600" } }]);
     expect(time.waits).toEqual([3_000]);
   });
 
-  it("leaves a stopped server, and stops waiting for a stop after 5 minutes", async () => {
+  it("leaves a stopped server, and stops waiting for a stop after 11 minutes", async () => {
     const stopped = setup({ [SERVER]: details("stopped") });
     await stopped.api.powerOff(SHOP_ID);
     expect(requests(stopped.calls)).toEqual([SERVER]);
@@ -458,7 +475,7 @@ describe("power", () => {
     const slow = setup({ [SERVER]: details("started"), [STOP]: details("started") });
     const error = await failure(slow.api.powerOff(SHOP_ID));
     expect(error.message).toBe(
-      'UpCloud\'s request to stop the server shop did not finish within 5 minutes: the server is still "started".',
+      'UpCloud\'s request to stop the server shop did not finish within 11 minutes: the server is still "started".',
     );
     expect(error.hint).toBe(
       `It may still finish: check the server in ${PANEL} before trying again.`,
@@ -479,7 +496,7 @@ describe("power", () => {
     expect(requests(started.calls)).toEqual([SERVER]);
   });
 
-  it("restarts the server softly, forced after 4 minutes, and waits until it is started", async () => {
+  it("restarts the server softly, forced after 10 minutes, and waits until it is started", async () => {
     const { api, calls } = setup({
       [SERVER]: [details("started"), details("maintenance"), details("started")],
       [RESTART]: details("started"),
@@ -487,7 +504,7 @@ describe("power", () => {
     await api.restart?.(SHOP_ID);
     expect(requests(calls)).toEqual([SERVER, RESTART, SERVER, SERVER]);
     expect(posted(calls)).toEqual([
-      { restart_server: { stop_type: "soft", timeout: "240", timeout_action: "destroy" } },
+      { restart_server: { stop_type: "soft", timeout: "600", timeout_action: "destroy" } },
     ]);
   });
 

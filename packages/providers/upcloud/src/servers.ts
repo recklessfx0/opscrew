@@ -14,11 +14,12 @@ const SNAPSHOT_TIMEOUT_MS = 15 * 60_000;
 const ACTION_TIMEOUT_MS = 15 * 60_000;
 /**
  * How long UpCloud waits for the system to shut down on a soft stop before it stops the server
- * hard (8-servers, "Stop server": 1 to 600 seconds), and the same for a restart.
+ * hard (8-servers, "Stop server": 1 to 600 seconds), and the same for a restart. UpCloud's API
+ * has no soft stop without that hard end, so OpsCrew gives the system the longest wait it allows.
  */
-const SOFT_STOP_SECONDS = 240;
-/** How long a stop may take in all: the soft stop's 4 minutes, then UpCloud's hard stop. */
-const STOP_TIMEOUT_MS = 5 * 60_000;
+const SOFT_STOP_SECONDS = 600;
+/** How long a stop may take in all: the soft stop's 10 minutes, then UpCloud's hard stop. */
+const STOP_TIMEOUT_MS = 11 * 60_000;
 /** The label OpsCrew's servers carry, with the app's name (decision 27). */
 const APP_LABEL = "opscrew-app";
 /** How the titles of the backups OpsCrew takes start: `opscrew-<app>-<server>-<time>`. */
@@ -137,7 +138,7 @@ export function upcloudServerApi(
   };
 
   /**
-   * Stops the server softly: UpCloud stops it hard once the system hasn't shut down after 4
+   * Stops the server softly: UpCloud stops it hard once the system hasn't shut down after 10
    * minutes. Waits until it is stopped.
    */
   const stop = async (server: Server): Promise<void> => {
@@ -289,17 +290,26 @@ export function upcloudServerApi(
         );
       }
       if (server.state !== "stopped") await stop(server);
-      await client.post(`/storage/${backup}/restore`, z.undefined());
-      await client.awaitStorage(disk, {
-        what: `restore the disk of the server ${server.title} from the backup ${backup}`,
-        timeoutMs: ACTION_TIMEOUT_MS,
-      });
+      try {
+        await client.post(`/storage/${backup}/restore`, z.undefined());
+        await client.awaitStorage(disk, {
+          what: `restore the disk of the server ${server.title} from the backup ${backup}`,
+          timeoutMs: ACTION_TIMEOUT_MS,
+        });
+      } catch (error) {
+        // The stop went through, so the server stays stopped: the user must know.
+        throw fail(
+          `${error instanceof Error ? error.message : String(error)} The UpCloud server ${server.title} was stopped for the restore and is still stopped.`,
+          `Check the disk in ${PANEL}, then start the server there (or run the restore again).`,
+        );
+      }
       await start(server);
     },
 
     /**
-     * Stops the server softly, which UpCloud turns into a hard stop when the system hasn't shut
-     * down after 4 minutes, and waits until it is stopped, 5 minutes at most.
+     * Stops the server softly and waits until it is stopped, 11 minutes at most. UpCloud has no
+     * soft stop without a hard end: it stops the server hard when the system hasn't shut down
+     * after 10 minutes, the longest wait it allows (the contract's "never forces" can't hold).
      */
     async powerOff(serverId: string): Promise<void> {
       const server = await getServer(serverUuid(serverId));
@@ -317,7 +327,7 @@ export function upcloudServerApi(
 
     /**
      * Restarts the server softly, stopped hard and started when its system hasn't shut down
-     * after 4 minutes (UpCloud's `timeout_action` `destroy`), and waits until it is started.
+     * after 10 minutes (UpCloud's `timeout_action` `destroy`), and waits until it is started.
      */
     async restart(serverId: string): Promise<void> {
       const server = await getServer(serverUuid(serverId));
